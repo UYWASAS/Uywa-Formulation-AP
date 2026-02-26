@@ -6,54 +6,145 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO Y LOGO ========================
+# ======================== BLOQUE 2: ESTILO Y LOGO (SIDEBAR ESTILO "PETS") ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
+
 st.markdown("""
-    <style>
-    html, body, .stApp, .main, .block-container {
-        background: linear-gradient(120deg, #f3f6fa 0%, #e3ecf7 100%) !important;
-        background-color: #f3f6fa !important;
-    }
-    section[data-testid="stSidebar"] {
-        background: #19345c !important;
-        color: #fff !important;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #fff !important;
-    }
-    .block-container {
-        background: transparent !important;
-    }
-    .stFileUploader, .stMultiSelect, .stSelectbox, .stNumberInput, .stTextInput {
-        background-color: #f4f8fa !important;
-        border-radius: 6px !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-    </style>
+<style>
+/* Fondo general similar al de la app ejemplo */
+html, body, .stApp, .main, .block-container {
+    background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
+    background-color: #eef4fc !important;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"]{
+    background-color: #2C3E50 !important;
+    color: #fff !important;
+}
+section[data-testid="stSidebar"] *{
+    color: #fff !important;
+}
+
+/* Padding del contenido principal */
+.block-container{
+    padding: 2rem 4rem;
+}
+
+/* Inputs con look suave */
+.stFileUploader, .stMultiSelect, .stSelectbox, .stNumberInput, .stTextInput {
+    background-color: #eef4fc !important;
+    border-radius: 6px !important;
+    border: 1px solid #d4e4fc !important;
+    box-shadow: none !important;
+}
+
+/* Botones (coincide con ejemplo) */
+.stButton > button {
+    background-color: #2176ff !important;
+    color: #fff !important;
+    border-radius: 8px !important;
+    border: none !important;
+    padding: 0.5rem 1rem !important;
+}
+.stButton > button:hover {
+    background-color: #1254d1 !important;
+    color: #fff !important;
+    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Ocultar footer Streamlit */
+footer {visibility: hidden !important;}
+
+/* --- Card del logo como en la imagen --- */
+.uywa-logo-card{
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 14px 12px;
+    box-shadow: 0px 8px 18px rgba(0,0,0,.18);
+    margin: 4px 0 14px 0;
+}
+.uywa-logo-card img{
+    display:block;
+    margin: 0 auto;
+}
+
+/* Tipografía/títulos centrados */
+.uywa-sb-wrap{
+    text-align:center;
+    margin-bottom: 18px;
+}
+.uywa-sb-title{
+    font-family: Montserrat, sans-serif;
+    margin: 0;
+    color:#fff;
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.1;
+}
+.uywa-sb-subtitle{
+    font-size: 14px;
+    margin: 6px 0 0 0;
+    color: #fff;
+}
+.uywa-sb-hr{
+    border: 1px solid #fff;
+    margin: 14px 0;
+    opacity: .85;
+}
+.uywa-sb-mail{
+    font-size: 13px;
+    margin: 0;
+    color:#fff;
+}
+.uywa-sb-footer{
+    font-size: 11px;
+    margin: 2px 0 0 0;
+    color:#fff;
+    opacity: .95;
+}
+
+/* Bloque estado (premium/standard/login) */
+.uywa-status-wrap{
+    margin-top: 14px;
+}
+</style>
 """, unsafe_allow_html=True)
 
+# Asegura tener user disponible (tu login la setea después; aquí solo leemos si existe)
+user = st.session_state.get("user", None)
+
 with st.sidebar:
-    st.image("assets/logo.png", width=110)
+    # Card blanca con logo centrado (como la imagen)
+    st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
+    st.image("assets/logo.png", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Texto centrado
     st.markdown(
         """
-        <div style='text-align: center; margin-bottom:10px;'>
-            <div style='font-size:32px;font-family:Montserrat,Arial;color:#fff; margin-top: 10px;letter-spacing:1px; font-weight:700; line-height:1.1;'>
-                UYWA-<br>NUTRITION<sup>®</sup>
-            </div>
-            <div style='font-size:16px;color:#fff; margin-top: 5px; font-family:Montserrat,Arial; line-height: 1.1;'>
-                Nutrición de Precisión Basada en Evidencia
-            </div>
-            <hr style='border-top:1px solid #2e4771; margin: 18px 0;'>
-            <div style='font-size:14px;color:#fff; margin-top: 8px;'>
-                <b>Contacto:</b> uywasas@gmail.com<br>
-                Derechos reservados © 2025
-            </div>
+        <div class="uywa-sb-wrap">
+            <h1 class="uywa-sb-title">UYWA Nutrition</h1>
+            <p class="uywa-sb-subtitle">Nutrición de Precisión Basada en Evidencia</p>
+            <hr class="uywa-sb-hr">
+            <p class="uywa-sb-mail">📧 uywasas@gmail.com</p>
+            <p class="uywa-sb-footer">Derechos reservados © 2026</p>
         </div>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
+    # Estado (como en el ejemplo)
+    st.markdown("<div class='uywa-status-wrap'>", unsafe_allow_html=True)
+    if user:
+        if user.get("premium", False):
+            st.success("Acceso premium activado")
+        else:
+            st.info("Acceso estándar activado")
+    else:
+        st.warning("Por favor, inicia sesión.")
+    st.markdown("</div>", unsafe_allow_html=True)
+    
 # ======================== BLOQUE 3: LOGIN CON ARCHIVO AUTH.PY ROBUSTO ========================
 from auth import USERS_DB  # <-- IMPORTA TU ARCHIVO AUTH.PY AQUÍ
 
