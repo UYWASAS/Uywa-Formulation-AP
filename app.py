@@ -6,42 +6,37 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO Y LOGO (SIDEBAR ESTILO "PETS" + ANGOSTO + FIX TIRA BLANCA) ========================
+# ======================== BLOQUE 2: ESTILO Y LOGO (FIX BANDA BLANCA + LOGO MÁS PEQUEÑO) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
 <style>
-/* ========= Variables rápidas ========= */
 :root{
     --sb-bg: #2C3E50;
-    --sb-width: 17.5rem; /* <-- más angosto (prueba 16.5rem a 19rem) */
+    --sb-width: 16.8rem;
 }
 
 /* Fondo general */
-html, body, .stApp, .main, .block-container {
+html, body, .stApp, .main, .block-container{
     background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
     background-color: #eef4fc !important;
 }
 
-/* Sidebar base + FORZAR background para evitar “tira blanca” */
+/* Sidebar */
 section[data-testid="stSidebar"]{
     background-color: var(--sb-bg) !important;
     color: #fff !important;
 }
-
-/* El contenedor interno a veces queda con fondo claro => lo pintamos igual */
 section[data-testid="stSidebar"] > div{
     background-color: var(--sb-bg) !important;
-    padding-top: 0rem !important;   /* <-- quita espacio superior que suele verse como franja */
-    margin-top: 0rem !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
 }
-
-/* Todo el texto blanco */
 section[data-testid="stSidebar"] *{
     color: #fff !important;
 }
 
-/* Sidebar más angosto (no oficial, pero útil) */
+/* Angosto */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"][aria-expanded="true"]{
     width: var(--sb-width) !important;
@@ -49,98 +44,91 @@ section[data-testid="stSidebar"][aria-expanded="true"]{
     max-width: var(--sb-width) !important;
 }
 
-/* Quitar espacios extra del bloque principal */
-.block-container{
-    padding: 2rem 4rem;
-}
+/* Quitar header si te mete espacios raros arriba */
+header[data-testid="stHeader"]{display:none !important;}
+footer{visibility:hidden !important;}
 
-/* Inputs */
-.stFileUploader, .stMultiSelect, .stSelectbox, .stNumberInput, .stTextInput {
+/* Padding main */
+.block-container{ padding: 2rem 4rem; }
+
+/* --------- IMPORTANTE: estilos de inputs SOLO en el MAIN ---------
+   Evita que un widget “fantasma” en sidebar se vea como banda blanca */
+.main .stFileUploader,
+.main .stMultiSelect,
+.main .stSelectbox,
+.main .stNumberInput,
+.main .stTextInput{
     background-color: #eef4fc !important;
     border-radius: 6px !important;
     border: 1px solid #d4e4fc !important;
     box-shadow: none !important;
 }
 
+/* Si algún widget cae en sidebar, lo dejamos transparente/flat */
+section[data-testid="stSidebar"] .stTextInput,
+section[data-testid="stSidebar"] .stNumberInput,
+section[data-testid="stSidebar"] .stSelectbox,
+section[data-testid="stSidebar"] .stMultiSelect,
+section[data-testid="stSidebar"] .stFileUploader{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
 /* Botones */
-.stButton > button {
+.stButton > button{
     background-color: #2176ff !important;
     color: #fff !important;
     border-radius: 8px !important;
     border: none !important;
     padding: 0.5rem 1rem !important;
 }
-.stButton > button:hover {
+.stButton > button:hover{
     background-color: #1254d1 !important;
     color: #fff !important;
-    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2) !important;
+    box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
 }
 
-/* Ocultar footer */
-footer {visibility: hidden !important;}
-
-/* (Opcional) Ocultar header/toolbar Streamlit si te genera franja clara arriba */
-header[data-testid="stHeader"]{
-    background: rgba(0,0,0,0) !important;
-}
-/* Si aún se ve franja, puedes directamente ocultarlo:
-header[data-testid="stHeader"]{display:none !important;}
-*/
-
-/* Card del logo */
+/* Card logo más compacta */
 .uywa-logo-card{
     background: #ffffff;
     border-radius: 12px;
-    padding: 14px 12px;
+    padding: 12px 10px;
     box-shadow: 0px 8px 18px rgba(0,0,0,.18);
-    margin: 8px 0 14px 0;
+    margin: 10px 0 12px 0;
 }
 
 /* Texto centrado */
-.uywa-sb-wrap{
-    text-align:center;
-    margin-bottom: 18px;
-}
+.uywa-sb-wrap{ text-align:center; margin-bottom: 12px; }
 .uywa-sb-title{
     font-family: Montserrat, sans-serif;
     margin: 0;
     color:#fff;
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 700;
     line-height: 1.1;
 }
 .uywa-sb-subtitle{
-    font-size: 14px;
+    font-size: 13px;
     margin: 6px 0 0 0;
     color: #fff;
 }
 .uywa-sb-hr{
     border: 1px solid #fff;
-    margin: 14px 0;
+    margin: 12px 0;
     opacity: .85;
 }
-.uywa-sb-mail{
-    font-size: 13px;
-    margin: 0;
-    color:#fff;
-}
-.uywa-sb-footer{
-    font-size: 11px;
-    margin: 2px 0 0 0;
-    color:#fff;
-    opacity: .95;
-}
-.uywa-status-wrap{
-    margin-top: 14px;
-}
+.uywa-sb-mail{ font-size: 13px; margin: 0; color:#fff; }
+.uywa-sb-footer{ font-size: 11px; margin: 2px 0 0 0; color:#fff; opacity: .95; }
 </style>
 """, unsafe_allow_html=True)
 
 user = st.session_state.get("user", None)
 
 with st.sidebar:
+    # Logo más pequeño dentro de la card
     st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
-    st.image("assets/logo.png", use_container_width=True)
+    st.image("assets/logo.png", width=170)  # <-- ajusta 150-180 a gusto
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
@@ -156,7 +144,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div class='uywa-status-wrap'>", unsafe_allow_html=True)
+    # Estado
     if user:
         if user.get("premium", False):
             st.success("Acceso premium activado")
@@ -164,7 +152,6 @@ with st.sidebar:
             st.info("Acceso estándar activado")
     else:
         st.warning("Por favor, inicia sesión.")
-    st.markdown("</div>", unsafe_allow_html=True)
     
 # ======================== BLOQUE 3: LOGIN CON ARCHIVO AUTH.PY ROBUSTO ========================
 from auth import USERS_DB  # <-- IMPORTA TU ARCHIVO AUTH.PY AQUÍ
