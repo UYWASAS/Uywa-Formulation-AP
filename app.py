@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO Y LOGO (FIX BANDA BLANCA + LOGO MÁS PEQUEÑO) ========================
+# ======================== BLOQUE 2: ESTILO (SIN SIDEBAR TODAVÍA) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
@@ -22,19 +22,12 @@ html, body, .stApp, .main, .block-container{
     background-color: #eef4fc !important;
 }
 
-/* Sidebar */
+/* Sidebar base */
 section[data-testid="stSidebar"]{
     background-color: var(--sb-bg) !important;
     color: #fff !important;
 }
-section[data-testid="stSidebar"] > div{
-    background-color: var(--sb-bg) !important;
-    padding-top: 0 !important;
-    margin-top: 0 !important;
-}
-section[data-testid="stSidebar"] *{
-    color: #fff !important;
-}
+section[data-testid="stSidebar"] *{ color: #fff !important; }
 
 /* Angosto */
 section[data-testid="stSidebar"],
@@ -44,36 +37,14 @@ section[data-testid="stSidebar"][aria-expanded="true"]{
     max-width: var(--sb-width) !important;
 }
 
-/* Quitar header si te mete espacios raros arriba */
-header[data-testid="stHeader"]{display:none !important;}
+/* Ocultar footer */
 footer{visibility:hidden !important;}
 
-/* Padding main */
+/* (Opcional) si no quieres la barra superior de streamlit */
+header[data-testid="stHeader"]{display:none !important;}
+
+/* Main padding */
 .block-container{ padding: 2rem 4rem; }
-
-/* --------- IMPORTANTE: estilos de inputs SOLO en el MAIN ---------
-   Evita que un widget “fantasma” en sidebar se vea como banda blanca */
-.main .stFileUploader,
-.main .stMultiSelect,
-.main .stSelectbox,
-.main .stNumberInput,
-.main .stTextInput{
-    background-color: #eef4fc !important;
-    border-radius: 6px !important;
-    border: 1px solid #d4e4fc !important;
-    box-shadow: none !important;
-}
-
-/* Si algún widget cae en sidebar, lo dejamos transparente/flat */
-section[data-testid="stSidebar"] .stTextInput,
-section[data-testid="stSidebar"] .stNumberInput,
-section[data-testid="stSidebar"] .stSelectbox,
-section[data-testid="stSidebar"] .stMultiSelect,
-section[data-testid="stSidebar"] .stFileUploader{
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
 
 /* Botones */
 .stButton > button{
@@ -89,13 +60,18 @@ section[data-testid="stSidebar"] .stFileUploader{
     box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
 }
 
-/* Card logo más compacta */
+/* Card logo */
 .uywa-logo-card{
     background: #ffffff;
     border-radius: 12px;
     padding: 12px 10px;
     box-shadow: 0px 8px 18px rgba(0,0,0,.18);
     margin: 10px 0 12px 0;
+}
+.uywa-logo-center{
+    display:flex;
+    justify-content:center;
+    align-items:center;
 }
 
 /* Texto centrado */
@@ -114,7 +90,7 @@ section[data-testid="stSidebar"] .stFileUploader{
     color: #fff;
 }
 .uywa-sb-hr{
-    border: 1px solid #fff;
+    border: 1px solid rgba(255,255,255,.9);
     margin: 12px 0;
     opacity: .85;
 }
@@ -123,13 +99,42 @@ section[data-testid="stSidebar"] .stFileUploader{
 </style>
 """, unsafe_allow_html=True)
 
+# ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
+from auth import USERS_DB
+
+def login():
+    st.title("Iniciar sesión")
+    username = st.text_input("Usuario", key="usuario_login")
+    password = st.text_input("Contraseña", type="password", key="password_login")
+    login_btn = st.button("Entrar", key="entrar_login")
+
+    if login_btn:
+        user = USERS_DB.get(username.strip().lower())
+        if user and user["password"] == password:
+            st.session_state["logged_in"] = True
+            st.session_state["usuario"] = username.strip()
+            st.session_state["user"] = user
+            st.success(f"Bienvenido, {user['name']}!")
+            st.rerun()
+        else:
+            st.error("Usuario o contraseña incorrectos.")
+
+    if not st.session_state.get("logged_in", False):
+        st.stop()
+
+if not st.session_state.get("logged_in", False):
+    login()
+
+# ======================== SIDEBAR (DESPUÉS DEL LOGIN) ========================
 user = st.session_state.get("user", None)
 
 with st.sidebar:
-    # Logo más pequeño dentro de la card
-    st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
-    st.image("assets/logo.png", width=170)  # <-- ajusta 150-180 a gusto
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class='uywa-logo-card'><div class='uywa-logo-center'>", unsafe_allow_html=True)
+    # Logo más nítido + centrado:
+    # - width fijo para que no se deforme
+    # - centrado por flex
+    st.image("assets/logo.png", width=155)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
     st.markdown(
         """
@@ -152,35 +157,13 @@ with st.sidebar:
             st.info("Acceso estándar activado")
     else:
         st.warning("Por favor, inicia sesión.")
-    
-# ======================== BLOQUE 3: LOGIN CON ARCHIVO AUTH.PY ROBUSTO ========================
-from auth import USERS_DB  # <-- IMPORTA TU ARCHIVO AUTH.PY AQUÍ
 
-def login():
-    st.title("Iniciar sesión")
-    username = st.text_input("Usuario", key="usuario_login")
-    password = st.text_input("Contraseña", type="password", key="password_login")
-    login_btn = st.button("Entrar", key="entrar_login")
-    if login_btn:
-        # El usuario se busca ignorando espacios y mayúsculas/minúsculas
-        user = USERS_DB.get(username.strip().lower())
-        if user and user["password"] == password:
-            st.session_state["logged_in"] = True
-            st.session_state["usuario"] = username.strip()
-            st.session_state["user"] = user
-            st.success(f"Bienvenido, {user['name']}!")
-            st.rerun()
-        else:
-            st.error("Usuario o contraseña incorrectos.")
-    # Evita que continúe la app si no está logueado
-    if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
-        st.stop()
-
-if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
-    login()
-
+# Resto de tu app
 USER_KEY = f"uywa_req_{st.session_state['usuario']}"
-st.markdown(f"<div style='text-align:right'>👤 Usuario: <b>{st.session_state['usuario']}</b></div>", unsafe_allow_html=True)
+st.markdown(
+    f"<div style='text-align:right'>👤 Usuario: <b>{st.session_state['usuario']}</b></div>",
+    unsafe_allow_html=True
+)
 
 # ======================== BLOQUE 4: UTILIDADES DE SESIÓN ========================
 def safe_float(val, default=0.0):
