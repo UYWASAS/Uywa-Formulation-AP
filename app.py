@@ -6,172 +6,97 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (LOGO 200px CENTRADO) ========================
+# ======================== BLOQUE 2: ESTILO Y LOGO CON BARRA LATERAL (IGUAL A "PETS") ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
+# Estilo global para la aplicación (igual al pets)
+# Nota: agrego un ancho de sidebar "un poco más angosto" sin tocar el logo.
 st.markdown("""
-<style>
-:root{
-  --sb-bg: #2C3E50;
+    <style>
+    html, body, .stApp, .block-container {
+        background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
+    }
 
-  /* Importante: para que un logo de 200px quepa, el sidebar no puede ser ultra angosto.
-     16.8rem ~ 269px; con padding/card puede no alcanzar. */
-  --sb-width: 19.5rem;  /* ~312px */
+    /* Sidebar igual */
+    section[data-testid="stSidebar"] {
+        background-color: #2C3E50 !important;
+        color: #fff !important;
+    }
+    section[data-testid="stSidebar"] * {
+        color: #fff !important;
+    }
 
-  --main-bg-1: #ffffff;
-  --main-bg-2: #eef4fc;
+    /* Botones igual */
+    .stButton > button {
+        background-color: #2176ff;
+        color: #fff !important;
+        border-radius: 8px;
+        border: none;
+        padding: 0.5rem 1rem !important;
+    }
+    .stButton > button:hover {
+        background-color: #1254d1;
+        color: #fff !important;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2) !important;
+    }
 
-  --btn: #2176ff;
-  --btn-hover: #1254d1;
-}
+    /* Padding main igual */
+    .block-container {
+        padding: 2rem 4rem;
+    }
 
-/* Fondo general */
-html, body, .stApp, .main, .block-container{
-  background: linear-gradient(120deg, var(--main-bg-1) 0%, var(--main-bg-2) 100%) !important;
-  background-color: var(--main-bg-2) !important;
-}
+    /* Inputs igual (solo los que usaba pets) */
+    .stNumberInput, .stSelectbox, .stTextInput {
+        background-color: #eef4fc !important;
+        border-radius: 4px;
+        border: 1px solid #d4e4fc !important;
+        padding: 0.5rem;
+    }
 
-/* Sidebar */
-section[data-testid="stSidebar"]{
-  background-color: var(--sb-bg) !important;
-  color: #fff !important;
-}
-section[data-testid="stSidebar"] > div{
-  background-color: var(--sb-bg) !important;
-  padding-top: 0.25rem !important;
-  margin-top: 0 !important;
-}
-section[data-testid="stSidebar"] *{ color: #fff !important; }
+    footer {visibility: hidden !important;}
 
-/* Sidebar ancho fijo */
-section[data-testid="stSidebar"],
-section[data-testid="stSidebar"][aria-expanded="true"]{
-  width: var(--sb-width) !important;
-  min-width: var(--sb-width) !important;
-  max-width: var(--sb-width) !important;
-}
-
-/* Ocultar footer */
-footer{visibility:hidden !important;}
-
-/* Main padding */
-.block-container{ padding: 2rem 4rem; }
-
-/* Botones */
-.stButton > button{
-  background-color: var(--btn) !important;
-  color: #fff !important;
-  border-radius: 8px !important;
-  border: none !important;
-  padding: 0.5rem 1rem !important;
-}
-.stButton > button:hover{
-  background-color: var(--btn-hover) !important;
-  color: #fff !important;
-  box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
-}
-
-/* Inputs premium SOLO main */
-.main .stFileUploader,
-.main .stMultiSelect,
-.main .stSelectbox,
-.main .stNumberInput,
-.main .stTextInput{
-  background-color: var(--main-bg-2) !important;
-  border-radius: 6px !important;
-  border: 1px solid #d4e4fc !important;
-  box-shadow: none !important;
-}
-
-/* Si un input cae en sidebar, evitar fondo blanco tipo “píldora” */
-section[data-testid="stSidebar"] .stTextInput,
-section[data-testid="stSidebar"] .stNumberInput,
-section[data-testid="stSidebar"] .stSelectbox,
-section[data-testid="stSidebar"] .stMultiSelect,
-section[data-testid="stSidebar"] .stFileUploader{
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* Card del logo */
-.uywa-logo-card{
-  background:#ffffff;
-  border-radius:12px;
-  padding: 12px 10px;
-  box-shadow:0px 8px 18px rgba(0,0,0,.18);
-  margin: 10px 0 12px 0;
-}
-
-/* Contenedor centrador del logo (sin columns) */
-.uywa-logo-center{
-  display:flex;
-  justify-content:center;
-  align-items:center;
-}
-
-/* Tipografía/Texto sidebar */
-.uywa-sb-wrap{ text-align:center; margin-bottom:12px; }
-.uywa-sb-title{
-  font-family: Montserrat, sans-serif;
-  margin:0;
-  font-size:24px;
-  font-weight:700;
-  line-height:1.1;
-  color:#fff;
-}
-.uywa-sb-subtitle{ font-size:13px; margin:6px 0 0 0; color:#fff; }
-.uywa-sb-hr{ border:1px solid rgba(255,255,255,.9); margin:12px 0; opacity:.85; }
-.uywa-sb-mail{ font-size:13px; margin:0; color:#fff; }
-.uywa-sb-footer{ font-size:11px; margin:2px 0 0 0; color:#fff; opacity:.95; }
-
-/* FIX “banda blanca”: colapsa el primer widget del sidebar si aparece antes del contenido */
-section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child{
-  margin: 0 !important;
-  padding: 0 !important;
-  height: 0 !important;
-  overflow: hidden !important;
-}
-</style>
+    /* --- Opcional: sidebar un poco más angosto ---
+       OJO: Esto es hack y depende de versión Streamlit.
+       Si te rompe algo, comenta este bloque. */
+    section[data-testid="stSidebar"],
+    section[data-testid="stSidebar"][aria-expanded="true"]{
+        width: 18.5rem !important;
+        min-width: 18.5rem !important;
+        max-width: 18.5rem !important;
+    }
+    </style>
 """, unsafe_allow_html=True)
 
-def render_sidebar():
-    # Evita dobles renders accidentales
-    if st.session_state.get("_sidebar_rendered_once", False):
-        return
-    st.session_state["_sidebar_rendered_once"] = True
+# Validar que la variable `user` esté definida (igual a pets)
+user = st.session_state.get("user", None)
 
-    user = st.session_state.get("user", None)
+# Configuración de la barra lateral (igual a pets)
+with st.sidebar:
+    # Esto deja el logo centrado y ocupando el ancho disponible (tal cual pets)
+    st.image("assets/logo.png", use_column_width=True)
 
-    with st.sidebar:
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style="text-align:center;margin-bottom:20px;">
+            <h1 style="font-family:Montserrat,sans-serif;margin:0;color:#fff;">UYWA Nutrition</h1>
+            <p style="font-size:14px;margin:0;color:#fff;">Nutrición de Precisión Basada en Evidencia</p>
+            <br>
+            <hr style="border:1px solid #fff;">
+            <p style="font-size:13px;color:#fff;margin:0;">📧 uywasas@gmail.com</p>
+            <p style="font-size:11px;color:#fff;margin:0;">Derechos reservados © 2026</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        # Card con logo 200px centrado (sin columns, así no lo limita el contenedor)
-        st.markdown("<div class='uywa-logo-card'><div class='uywa-logo-center'>", unsafe_allow_html=True)
-        st.image("assets/logo.png", width=200)
-        st.markdown("</div></div>", unsafe_allow_html=True)
-
-        st.markdown(
-            """
-            <div class="uywa-sb-wrap">
-                <h1 class="uywa-sb-title">UYWA Nutrition</h1>
-                <p class="uywa-sb-subtitle">Nutrición de Precisión Basada en Evidencia</p>
-                <hr class="uywa-sb-hr">
-                <p class="uywa-sb-mail">📧 uywasas@gmail.com</p>
-                <p class="uywa-sb-footer">Derechos reservados © 2026</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if user:
-            st.success("Acceso premium activado" if user.get("premium", False) else "Acceso estándar activado")
+    # Verificar el estado del usuario (igual a pets)
+    if user:
+        if user.get("premium", False):
+            st.success("Acceso premium activado")
         else:
-            st.warning("Por favor, inicia sesión.")
-
-# Llama una sola vez (idealmente después del login para que el estado sea correcto)
-render_sidebar()
-
+            st.info("Acceso estándar activado")
+    else:
+        st.warning("Por favor, inicia sesión.")
 # ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
 from auth import USERS_DB
 
