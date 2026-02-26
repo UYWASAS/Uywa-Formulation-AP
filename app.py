@@ -143,7 +143,7 @@ def render_sidebar():
         st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([1, 3, 1])
         with c2:
-            st.image("assets/logo.png", width=160)
+            st.image("assets/logo.png", width=170)
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(
