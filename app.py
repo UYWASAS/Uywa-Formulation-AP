@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (ANGOSTO, LOGO CENTRADO, FIX BANDA BLANCA) ========================
+# ======================== BLOQUE 2: ESTILO GLOBAL (SEGURO) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
@@ -22,15 +22,14 @@ html, body, .stApp, .main, .block-container{
   background-color: #eef4fc !important;
 }
 
-/* Sidebar */
+/* Sidebar base */
 section[data-testid="stSidebar"]{
   background-color: var(--sb-bg) !important;
   color: #fff !important;
 }
 section[data-testid="stSidebar"] > div{
   background-color: var(--sb-bg) !important;
-  padding-top: 0 !important;
-  margin-top: 0 !important;
+  padding-top: 0.25rem !important;
 }
 section[data-testid="stSidebar"] *{
   color: #fff !important;
@@ -44,11 +43,14 @@ section[data-testid="stSidebar"][aria-expanded="true"]{
   max-width: var(--sb-width) !important;
 }
 
-/* Ocultar header/footer nativos */
-header[data-testid="stHeader"]{display:none !important;}
+/* Ocultar footer */
 footer{visibility:hidden !important;}
 
-/* Padding main */
+/* NO oculto el header completo para evitar comportamientos raros.
+   Si quieres ocultarlo, lo activamos después cuando todo esté estable. */
+/* header[data-testid="stHeader"]{display:none !important;} */
+
+/* Main padding */
 .block-container{ padding: 2rem 4rem; }
 
 /* Botones */
@@ -65,7 +67,7 @@ footer{visibility:hidden !important;}
   box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
 }
 
-/* Inputs en MAIN (para que el main se vea premium) */
+/* Inputs “premium” SOLO en el main */
 .main .stFileUploader,
 .main .stMultiSelect,
 .main .stSelectbox,
@@ -77,7 +79,19 @@ footer{visibility:hidden !important;}
   box-shadow: none !important;
 }
 
-/* Card para logo */
+/* Si algún input cae en el sidebar, lo dejamos SIN fondo blanco (esto quita la “píldora blanca”)
+   Sin ocultar widgets (seguro) */
+section[data-testid="stSidebar"] .stTextInput,
+section[data-testid="stSidebar"] .stNumberInput,
+section[data-testid="stSidebar"] .stSelectbox,
+section[data-testid="stSidebar"] .stMultiSelect,
+section[data-testid="stSidebar"] .stFileUploader{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Card logo */
 .uywa-logo-card{
   background:#ffffff;
   border-radius:12px;
@@ -96,33 +110,15 @@ footer{visibility:hidden !important;}
   line-height:1.1;
   color:#fff;
 }
-.uywa-sb-subtitle{
-  font-size:13px;
-  margin:6px 0 0 0;
-  color:#fff;
-}
-.uywa-sb-hr{
-  border:1px solid rgba(255,255,255,.9);
-  margin:12px 0;
-  opacity:.85;
-}
+.uywa-sb-subtitle{ font-size:13px; margin:6px 0 0 0; color:#fff; }
+.uywa-sb-hr{ border:1px solid rgba(255,255,255,.9); margin:12px 0; opacity:.85; }
 .uywa-sb-mail{ font-size:13px; margin:0; color:#fff; }
 .uywa-sb-footer{ font-size:11px; margin:2px 0 0 0; color:#fff; opacity:.95; }
-
-/* ========== FIX AGRESIVO “BANDA BLANCA” ==========
-   En tu caso esa banda es un widget que aparece antes del contenido del sidebar.
-   Ocultamos los 2 primeros widgets del sidebar.
-   Si algún día agregas algo arriba del logo, ajusta/borra este bloque.
-*/
-section[data-testid="stSidebar"] div[data-testid="stWidget"]:nth-child(1),
-section[data-testid="stSidebar"] div[data-testid="stWidget"]:nth-child(2){
-  display:none !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# ======================== BLOQUE 3: LOGIN (ROBUSTO) ========================
-from auth import USERS_DB  # <-- tu auth.py
+# ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
+from auth import USERS_DB
 
 def login():
     st.title("Iniciar sesión")
@@ -141,23 +137,20 @@ def login():
         else:
             st.error("Usuario o contraseña incorrectos.")
 
-    # Evita que continúe la app si no está logueado
     if not st.session_state.get("logged_in", False):
         st.stop()
 
 if not st.session_state.get("logged_in", False):
     login()
 
-# Usuario autenticado disponible
+# ======================== BLOQUE 3.1: SIDEBAR (YA LOGUEADO) ========================
 user = st.session_state.get("user", None)
 
-# ======================== BLOQUE 3.1: SIDEBAR (DESPUÉS DE LOGIN) ========================
 with st.sidebar:
-    # Card con logo centrado REAL usando columnas (no HTML)
     st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 3, 1])
     with c2:
-        # Tamaño fijo para nitidez (sube/baja 150-190 según te guste)
+        # Nítido + centrado
         st.image("assets/logo.png", width=170)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -174,12 +167,8 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # Estado
     if user:
-        if user.get("premium", False):
-            st.success("Acceso premium activado")
-        else:
-            st.info("Acceso estándar activado")
+        st.success("Acceso premium activado" if user.get("premium", False) else "Acceso estándar activado")
     else:
         st.warning("Por favor, inicia sesión.")
 
