@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (ANGOSTO, LOGO CENTRADO, FIX “BANDA BLANCA”) ========================
+# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (SINGLE RENDER, NO DUPLICADOS) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
@@ -22,13 +22,13 @@ st.markdown("""
   --btn-hover: #1254d1;
 }
 
-/* ===== Fondo general ===== */
+/* Fondo general */
 html, body, .stApp, .main, .block-container{
   background: linear-gradient(120deg, var(--main-bg-1) 0%, var(--main-bg-2) 100%) !important;
   background-color: var(--main-bg-2) !important;
 }
 
-/* ===== Sidebar base ===== */
+/* Sidebar base */
 section[data-testid="stSidebar"]{
   background-color: var(--sb-bg) !important;
   color: #fff !important;
@@ -38,11 +38,9 @@ section[data-testid="stSidebar"] > div{
   padding-top: 0.25rem !important;
   margin-top: 0 !important;
 }
-section[data-testid="stSidebar"] *{
-  color: #fff !important;
-}
+section[data-testid="stSidebar"] *{ color: #fff !important; }
 
-/* Sidebar más angosto (hack CSS) */
+/* Sidebar más angosto */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"][aria-expanded="true"]{
   width: var(--sb-width) !important;
@@ -50,13 +48,13 @@ section[data-testid="stSidebar"][aria-expanded="true"]{
   max-width: var(--sb-width) !important;
 }
 
-/* Ocultar footer nativo */
+/* Ocultar footer */
 footer{visibility:hidden !important;}
 
-/* Padding main */
+/* Main padding */
 .block-container{ padding: 2rem 4rem; }
 
-/* ===== Botones ===== */
+/* Botones */
 .stButton > button{
   background-color: var(--btn) !important;
   color: #fff !important;
@@ -70,7 +68,7 @@ footer{visibility:hidden !important;}
   box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
 }
 
-/* Inputs “premium” SOLO en el main */
+/* Inputs premium SOLO main */
 .main .stFileUploader,
 .main .stMultiSelect,
 .main .stSelectbox,
@@ -82,7 +80,7 @@ footer{visibility:hidden !important;}
   box-shadow: none !important;
 }
 
-/* Si un input cae en sidebar, evitar fondo blanco tipo “píldora” */
+/* En sidebar, evitar fondos blancos en widgets “raros” */
 section[data-testid="stSidebar"] .stTextInput,
 section[data-testid="stSidebar"] .stNumberInput,
 section[data-testid="stSidebar"] .stSelectbox,
@@ -93,7 +91,7 @@ section[data-testid="stSidebar"] .stFileUploader{
   box-shadow: none !important;
 }
 
-/* ===== Card logo ===== */
+/* Card logo */
 .uywa-logo-card{
   background:#ffffff;
   border-radius:12px;
@@ -102,7 +100,7 @@ section[data-testid="stSidebar"] .stFileUploader{
   margin: 10px 0 12px 0;
 }
 
-/* ===== Texto sidebar ===== */
+/* Texto sidebar */
 .uywa-sb-wrap{ text-align:center; margin-bottom:12px; }
 .uywa-sb-title{
   font-family: Montserrat, sans-serif;
@@ -117,60 +115,57 @@ section[data-testid="stSidebar"] .stFileUploader{
 .uywa-sb-mail{ font-size:13px; margin:0; color:#fff; }
 .uywa-sb-footer{ font-size:11px; margin:2px 0 0 0; color:#fff; opacity:.95; }
 
-/* ============================================================
-   FIX “BANDA BLANCA” (píldora blanca arriba)
-   En tu caso, parece ser un widget fantasma como primer elemento del sidebar.
-   En vez de ocultar todo (display:none), lo colapsamos a altura 0.
-   Esto suele ser más estable entre versiones de Streamlit.
-   ============================================================ */
+/* “Banda blanca” como widget fantasma: colapsar SOLO si aparece arriba */
 section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child{
   margin: 0 !important;
   padding: 0 !important;
   height: 0 !important;
   overflow: hidden !important;
 }
-section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child input,
-section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child textarea,
-section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child [role="textbox"]{
-  height: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar (solo UI). Nota: el login debería ocurrir antes si quieres que el estado sea correcto.
-user = st.session_state.get("user", None)
+def render_sidebar():
+    """
+    Renderiza el sidebar una sola vez por ejecución.
+    Si ves duplicados, casi seguro tienes otro `with st.sidebar:` en el script.
+    """
+    # Guard para evitar render doble accidental en el mismo run
+    if st.session_state.get("_sidebar_rendered_once", False):
+        return
+    st.session_state["_sidebar_rendered_once"] = True
 
-with st.sidebar:
-    # spacer pequeño (por si Streamlit deja algún gap arriba)
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    user = st.session_state.get("user", None)
 
-    # Card con logo centrado REAL usando columnas (nítido + centrado)
-    st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 3, 1])
-    with c2:
-        st.image("assets/logo.png", width=160)  # ajusta 150-175 si quieres
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.sidebar:
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-    st.markdown(
-        """
-        <div class="uywa-sb-wrap">
-            <h1 class="uywa-sb-title">UYWA Nutrition</h1>
-            <p class="uywa-sb-subtitle">Nutrición de Precisión Basada en Evidencia</p>
-            <hr class="uywa-sb-hr">
-            <p class="uywa-sb-mail">📧 uywasas@gmail.com</p>
-            <p class="uywa-sb-footer">Derechos reservados © 2026</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1, 3, 1])
+        with c2:
+            st.image("assets/logo.png", width=160)
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Estado (opcional)
-    if user:
-        st.success("Acceso premium activado" if user.get("premium", False) else "Acceso estándar activado")
-    else:
-        st.warning("Por favor, inicia sesión.")
+        st.markdown(
+            """
+            <div class="uywa-sb-wrap">
+                <h1 class="uywa-sb-title">UYWA Nutrition</h1>
+                <p class="uywa-sb-subtitle">Nutrición de Precisión Basada en Evidencia</p>
+                <hr class="uywa-sb-hr">
+                <p class="uywa-sb-mail">📧 uywasas@gmail.com</p>
+                <p class="uywa-sb-footer">Derechos reservados © 2026</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if user:
+            st.success("Acceso premium activado" if user.get("premium", False) else "Acceso estándar activado")
+        else:
+            st.warning("Por favor, inicia sesión.")
+
+# Llama una vez (idealmente: después del login si quieres el estado correcto)
+render_sidebar()
 
 # ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
 from auth import USERS_DB
