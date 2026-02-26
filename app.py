@@ -6,14 +6,17 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (SINGLE RENDER, NO DUPLICADOS) ========================
+# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (LOGO 200px CENTRADO) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
 <style>
 :root{
   --sb-bg: #2C3E50;
-  --sb-width: 16.8rem;
+
+  /* Importante: para que un logo de 200px quepa, el sidebar no puede ser ultra angosto.
+     16.8rem ~ 269px; con padding/card puede no alcanzar. */
+  --sb-width: 19.5rem;  /* ~312px */
 
   --main-bg-1: #ffffff;
   --main-bg-2: #eef4fc;
@@ -28,7 +31,7 @@ html, body, .stApp, .main, .block-container{
   background-color: var(--main-bg-2) !important;
 }
 
-/* Sidebar base */
+/* Sidebar */
 section[data-testid="stSidebar"]{
   background-color: var(--sb-bg) !important;
   color: #fff !important;
@@ -40,7 +43,7 @@ section[data-testid="stSidebar"] > div{
 }
 section[data-testid="stSidebar"] *{ color: #fff !important; }
 
-/* Sidebar más angosto */
+/* Sidebar ancho fijo */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"][aria-expanded="true"]{
   width: var(--sb-width) !important;
@@ -80,7 +83,7 @@ footer{visibility:hidden !important;}
   box-shadow: none !important;
 }
 
-/* En sidebar, evitar fondos blancos en widgets “raros” */
+/* Si un input cae en sidebar, evitar fondo blanco tipo “píldora” */
 section[data-testid="stSidebar"] .stTextInput,
 section[data-testid="stSidebar"] .stNumberInput,
 section[data-testid="stSidebar"] .stSelectbox,
@@ -91,16 +94,23 @@ section[data-testid="stSidebar"] .stFileUploader{
   box-shadow: none !important;
 }
 
-/* Card logo */
+/* Card del logo */
 .uywa-logo-card{
   background:#ffffff;
   border-radius:12px;
-  padding:12px 10px;
+  padding: 12px 10px;
   box-shadow:0px 8px 18px rgba(0,0,0,.18);
   margin: 10px 0 12px 0;
 }
 
-/* Texto sidebar */
+/* Contenedor centrador del logo (sin columns) */
+.uywa-logo-center{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+/* Tipografía/Texto sidebar */
 .uywa-sb-wrap{ text-align:center; margin-bottom:12px; }
 .uywa-sb-title{
   font-family: Montserrat, sans-serif;
@@ -115,7 +125,7 @@ section[data-testid="stSidebar"] .stFileUploader{
 .uywa-sb-mail{ font-size:13px; margin:0; color:#fff; }
 .uywa-sb-footer{ font-size:11px; margin:2px 0 0 0; color:#fff; opacity:.95; }
 
-/* “Banda blanca” como widget fantasma: colapsar SOLO si aparece arriba */
+/* FIX “banda blanca”: colapsa el primer widget del sidebar si aparece antes del contenido */
 section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child{
   margin: 0 !important;
   padding: 0 !important;
@@ -126,11 +136,7 @@ section[data-testid="stSidebar"] div[data-testid="stWidget"]:first-child{
 """, unsafe_allow_html=True)
 
 def render_sidebar():
-    """
-    Renderiza el sidebar una sola vez por ejecución.
-    Si ves duplicados, casi seguro tienes otro `with st.sidebar:` en el script.
-    """
-    # Guard para evitar render doble accidental en el mismo run
+    # Evita dobles renders accidentales
     if st.session_state.get("_sidebar_rendered_once", False):
         return
     st.session_state["_sidebar_rendered_once"] = True
@@ -140,11 +146,10 @@ def render_sidebar():
     with st.sidebar:
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-        st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
-        c1, c2, c3 = st.columns([1, 3, 1])
-        with c2:
-            st.image("assets/logo.png", width=350)
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Card con logo 200px centrado (sin columns, así no lo limita el contenedor)
+        st.markdown("<div class='uywa-logo-card'><div class='uywa-logo-center'>", unsafe_allow_html=True)
+        st.image("assets/logo.png", width=200)
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
         st.markdown(
             """
@@ -164,7 +169,7 @@ def render_sidebar():
         else:
             st.warning("Por favor, inicia sesión.")
 
-# Llama una vez (idealmente: después del login si quieres el estado correcto)
+# Llama una sola vez (idealmente después del login para que el estado sea correcto)
 render_sidebar()
 
 # ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
