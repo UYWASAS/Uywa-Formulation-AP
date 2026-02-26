@@ -6,32 +6,55 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO Y LOGO (SIDEBAR ESTILO "PETS") ========================
+# ======================== BLOQUE 2: ESTILO Y LOGO (SIDEBAR ESTILO "PETS" + ANGOSTO + FIX TIRA BLANCA) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
 <style>
-/* Fondo general similar al de la app ejemplo */
+/* ========= Variables rápidas ========= */
+:root{
+    --sb-bg: #2C3E50;
+    --sb-width: 17.5rem; /* <-- más angosto (prueba 16.5rem a 19rem) */
+}
+
+/* Fondo general */
 html, body, .stApp, .main, .block-container {
     background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
     background-color: #eef4fc !important;
 }
 
-/* Sidebar */
+/* Sidebar base + FORZAR background para evitar “tira blanca” */
 section[data-testid="stSidebar"]{
-    background-color: #2C3E50 !important;
+    background-color: var(--sb-bg) !important;
     color: #fff !important;
 }
+
+/* El contenedor interno a veces queda con fondo claro => lo pintamos igual */
+section[data-testid="stSidebar"] > div{
+    background-color: var(--sb-bg) !important;
+    padding-top: 0rem !important;   /* <-- quita espacio superior que suele verse como franja */
+    margin-top: 0rem !important;
+}
+
+/* Todo el texto blanco */
 section[data-testid="stSidebar"] *{
     color: #fff !important;
 }
 
-/* Padding del contenido principal */
+/* Sidebar más angosto (no oficial, pero útil) */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"][aria-expanded="true"]{
+    width: var(--sb-width) !important;
+    min-width: var(--sb-width) !important;
+    max-width: var(--sb-width) !important;
+}
+
+/* Quitar espacios extra del bloque principal */
 .block-container{
     padding: 2rem 4rem;
 }
 
-/* Inputs con look suave */
+/* Inputs */
 .stFileUploader, .stMultiSelect, .stSelectbox, .stNumberInput, .stTextInput {
     background-color: #eef4fc !important;
     border-radius: 6px !important;
@@ -39,7 +62,7 @@ section[data-testid="stSidebar"] *{
     box-shadow: none !important;
 }
 
-/* Botones (coincide con ejemplo) */
+/* Botones */
 .stButton > button {
     background-color: #2176ff !important;
     color: #fff !important;
@@ -53,23 +76,27 @@ section[data-testid="stSidebar"] *{
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* Ocultar footer Streamlit */
+/* Ocultar footer */
 footer {visibility: hidden !important;}
 
-/* --- Card del logo como en la imagen --- */
+/* (Opcional) Ocultar header/toolbar Streamlit si te genera franja clara arriba */
+header[data-testid="stHeader"]{
+    background: rgba(0,0,0,0) !important;
+}
+/* Si aún se ve franja, puedes directamente ocultarlo:
+header[data-testid="stHeader"]{display:none !important;}
+*/
+
+/* Card del logo */
 .uywa-logo-card{
     background: #ffffff;
     border-radius: 12px;
     padding: 14px 12px;
     box-shadow: 0px 8px 18px rgba(0,0,0,.18);
-    margin: 4px 0 14px 0;
-}
-.uywa-logo-card img{
-    display:block;
-    margin: 0 auto;
+    margin: 8px 0 14px 0;
 }
 
-/* Tipografía/títulos centrados */
+/* Texto centrado */
 .uywa-sb-wrap{
     text-align:center;
     margin-bottom: 18px;
@@ -103,24 +130,19 @@ footer {visibility: hidden !important;}
     color:#fff;
     opacity: .95;
 }
-
-/* Bloque estado (premium/standard/login) */
 .uywa-status-wrap{
     margin-top: 14px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Asegura tener user disponible (tu login la setea después; aquí solo leemos si existe)
 user = st.session_state.get("user", None)
 
 with st.sidebar:
-    # Card blanca con logo centrado (como la imagen)
     st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
     st.image("assets/logo.png", use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Texto centrado
     st.markdown(
         """
         <div class="uywa-sb-wrap">
@@ -134,7 +156,6 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # Estado (como en el ejemplo)
     st.markdown("<div class='uywa-status-wrap'>", unsafe_allow_html=True)
     if user:
         if user.get("premium", False):
