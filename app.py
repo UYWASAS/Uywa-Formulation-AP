@@ -9,15 +9,12 @@ from optimization import DietFormulator
 # ======================== BLOQUE 2: ESTILO Y LOGO CON BARRA LATERAL (IGUAL A "PETS") ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
-# Estilo global para la aplicación (igual al pets)
-# Nota: agrego un ancho de sidebar "un poco más angosto" sin tocar el logo.
 st.markdown("""
     <style>
     html, body, .stApp, .block-container {
         background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
     }
 
-    /* Sidebar igual */
     section[data-testid="stSidebar"] {
         background-color: #2C3E50 !important;
         color: #fff !important;
@@ -26,7 +23,6 @@ st.markdown("""
         color: #fff !important;
     }
 
-    /* Botones igual */
     .stButton > button {
         background-color: #2176ff;
         color: #fff !important;
@@ -40,12 +36,10 @@ st.markdown("""
         box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2) !important;
     }
 
-    /* Padding main igual */
     .block-container {
         padding: 2rem 4rem;
     }
 
-    /* Inputs igual (solo los que usaba pets) */
     .stNumberInput, .stSelectbox, .stTextInput {
         background-color: #eef4fc !important;
         border-radius: 4px;
@@ -55,9 +49,7 @@ st.markdown("""
 
     footer {visibility: hidden !important;}
 
-    /* --- Opcional: sidebar un poco más angosto ---
-       OJO: Esto es hack y depende de versión Streamlit.
-       Si te rompe algo, comenta este bloque. */
+    /* Opcional: sidebar un poco más angosto */
     section[data-testid="stSidebar"],
     section[data-testid="stSidebar"][aria-expanded="true"]{
         width: 18.5rem !important;
@@ -67,46 +59,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Validar que la variable `user` esté definida (igual a pets)
-user = st.session_state.get("user", None)
-
-# Configuración de la barra lateral (igual a pets)
-with st.sidebar:
-    # Esto deja el logo centrado y ocupando el ancho disponible (tal cual pets)
-    st.image("assets/logo.png", use_column_width=True)
-
-    st.markdown(
-        """
-        <div style="text-align:center;margin-bottom:20px;">
-            <h1 style="font-family:Montserrat,sans-serif;margin:0;color:#fff;">UYWA Nutrition</h1>
-            <p style="font-size:14px;margin:0;color:#fff;">Nutrición de Precisión Basada en Evidencia</p>
-            <br>
-            <hr style="border:1px solid #fff;">
-            <p style="font-size:13px;color:#fff;margin:0;">📧 uywasas@gmail.com</p>
-            <p style="font-size:11px;color:#fff;margin:0;">Derechos reservados © 2026</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # Verificar el estado del usuario (igual a pets)
-    if user:
-        if user.get("premium", False):
-            st.success("Acceso premium activado")
-        else:
-            st.info("Acceso estándar activado")
-    else:
-        st.warning("Por favor, inicia sesión.")
-# ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
+# ======================== BLOQUE 3: LOGIN ========================
 from auth import USERS_DB
 
 def login():
     st.title("Iniciar sesión")
     username = st.text_input("Usuario", key="usuario_login")
     password = st.text_input("Contraseña", type="password", key="password_login")
-    login_btn = st.button("Entrar", key="entrar_login")
 
-    if login_btn:
+    if st.button("Entrar", key="entrar_login"):
         user = USERS_DB.get(username.strip().lower())
         if user and user["password"] == password:
             st.session_state["logged_in"] = True
@@ -123,25 +84,21 @@ def login():
 if not st.session_state.get("logged_in", False):
     login()
 
-# ======================== BLOQUE 3.1: SIDEBAR (YA LOGUEADO) ========================
+# ======================== SIDEBAR ÚNICO (después de login) ========================
 user = st.session_state.get("user", None)
 
 with st.sidebar:
-    st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns([1, 3, 1])
-    with c2:
-        # Nítido + centrado
-        st.image("assets/logo.png", width=170)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.image("assets/logo.png", use_container_width=True)
 
     st.markdown(
         """
-        <div class="uywa-sb-wrap">
-            <h1 class="uywa-sb-title">UYWA Nutrition</h1>
-            <p class="uywa-sb-subtitle">Nutrición de Precisión Basada en Evidencia</p>
-            <hr class="uywa-sb-hr">
-            <p class="uywa-sb-mail">📧 uywasas@gmail.com</p>
-            <p class="uywa-sb-footer">Derechos reservados © 2026</p>
+        <div style="text-align:center;margin-bottom:20px;">
+            <h1 style="font-family:Montserrat,sans-serif;margin:0;color:#fff;">UYWA Nutrition</h1>
+            <p style="font-size:14px;margin:0;color:#fff;">Nutrición de Precisión Basada en Evidencia</p>
+            <br>
+            <hr style="border:1px solid #fff;">
+            <p style="font-size:13px;color:#fff;margin:0;">📧 uywasas@gmail.com</p>
+            <p style="font-size:11px;color:#fff;margin:0;">Derechos reservados © 2026</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -151,7 +108,7 @@ with st.sidebar:
         st.success("Acceso premium activado" if user.get("premium", False) else "Acceso estándar activado")
     else:
         st.warning("Por favor, inicia sesión.")
-
+        
 # ======================== BLOQUE 3.2: IDENTIDAD DE USUARIO EN MAIN ========================
 USER_KEY = f"uywa_req_{st.session_state['usuario']}"
 st.markdown(
