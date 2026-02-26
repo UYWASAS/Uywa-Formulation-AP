@@ -6,101 +6,123 @@ import plotly.graph_objects as go
 from data import load_ingredients, get_nutrient_list
 from optimization import DietFormulator
 
-# ======================== BLOQUE 2: ESTILO (SIN SIDEBAR TODAVÍA) ========================
+# ======================== BLOQUE 2: ESTILO GLOBAL + SIDEBAR (ANGOSTO, LOGO CENTRADO, FIX BANDA BLANCA) ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
 
 st.markdown("""
 <style>
 :root{
-    --sb-bg: #2C3E50;
-    --sb-width: 16.8rem;
+  --sb-bg: #2C3E50;
+  --sb-width: 16.8rem;
 }
 
 /* Fondo general */
 html, body, .stApp, .main, .block-container{
-    background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
-    background-color: #eef4fc !important;
+  background: linear-gradient(120deg, #ffffff 0%, #eef4fc 100%) !important;
+  background-color: #eef4fc !important;
 }
 
-/* Sidebar base */
+/* Sidebar */
 section[data-testid="stSidebar"]{
-    background-color: var(--sb-bg) !important;
-    color: #fff !important;
+  background-color: var(--sb-bg) !important;
+  color: #fff !important;
 }
-section[data-testid="stSidebar"] *{ color: #fff !important; }
+section[data-testid="stSidebar"] > div{
+  background-color: var(--sb-bg) !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+section[data-testid="stSidebar"] *{
+  color: #fff !important;
+}
 
-/* Angosto */
+/* Sidebar más angosto */
 section[data-testid="stSidebar"],
 section[data-testid="stSidebar"][aria-expanded="true"]{
-    width: var(--sb-width) !important;
-    min-width: var(--sb-width) !important;
-    max-width: var(--sb-width) !important;
+  width: var(--sb-width) !important;
+  min-width: var(--sb-width) !important;
+  max-width: var(--sb-width) !important;
 }
 
-/* Ocultar footer */
+/* Ocultar header/footer nativos */
+header[data-testid="stHeader"]{display:none !important;}
 footer{visibility:hidden !important;}
 
-/* (Opcional) si no quieres la barra superior de streamlit */
-header[data-testid="stHeader"]{display:none !important;}
-
-/* Main padding */
+/* Padding main */
 .block-container{ padding: 2rem 4rem; }
 
 /* Botones */
 .stButton > button{
-    background-color: #2176ff !important;
-    color: #fff !important;
-    border-radius: 8px !important;
-    border: none !important;
-    padding: 0.5rem 1rem !important;
+  background-color: #2176ff !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  border: none !important;
+  padding: 0.5rem 1rem !important;
 }
 .stButton > button:hover{
-    background-color: #1254d1 !important;
-    color: #fff !important;
-    box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
+  background-color: #1254d1 !important;
+  color: #fff !important;
+  box-shadow: 0px 4px 10px rgba(0,0,0,.2) !important;
 }
 
-/* Card logo */
+/* Inputs en MAIN (para que el main se vea premium) */
+.main .stFileUploader,
+.main .stMultiSelect,
+.main .stSelectbox,
+.main .stNumberInput,
+.main .stTextInput{
+  background-color: #eef4fc !important;
+  border-radius: 6px !important;
+  border: 1px solid #d4e4fc !important;
+  box-shadow: none !important;
+}
+
+/* Card para logo */
 .uywa-logo-card{
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 12px 10px;
-    box-shadow: 0px 8px 18px rgba(0,0,0,.18);
-    margin: 10px 0 12px 0;
-}
-.uywa-logo-center{
-    display:flex;
-    justify-content:center;
-    align-items:center;
+  background:#ffffff;
+  border-radius:12px;
+  padding:12px 10px;
+  box-shadow:0px 8px 18px rgba(0,0,0,.18);
+  margin: 10px 0 12px 0;
 }
 
-/* Texto centrado */
-.uywa-sb-wrap{ text-align:center; margin-bottom: 12px; }
+/* Texto sidebar */
+.uywa-sb-wrap{ text-align:center; margin-bottom:12px; }
 .uywa-sb-title{
-    font-family: Montserrat, sans-serif;
-    margin: 0;
-    color:#fff;
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.1;
+  font-family: Montserrat, sans-serif;
+  margin:0;
+  font-size:24px;
+  font-weight:700;
+  line-height:1.1;
+  color:#fff;
 }
 .uywa-sb-subtitle{
-    font-size: 13px;
-    margin: 6px 0 0 0;
-    color: #fff;
+  font-size:13px;
+  margin:6px 0 0 0;
+  color:#fff;
 }
 .uywa-sb-hr{
-    border: 1px solid rgba(255,255,255,.9);
-    margin: 12px 0;
-    opacity: .85;
+  border:1px solid rgba(255,255,255,.9);
+  margin:12px 0;
+  opacity:.85;
 }
-.uywa-sb-mail{ font-size: 13px; margin: 0; color:#fff; }
-.uywa-sb-footer{ font-size: 11px; margin: 2px 0 0 0; color:#fff; opacity: .95; }
+.uywa-sb-mail{ font-size:13px; margin:0; color:#fff; }
+.uywa-sb-footer{ font-size:11px; margin:2px 0 0 0; color:#fff; opacity:.95; }
+
+/* ========== FIX AGRESIVO “BANDA BLANCA” ==========
+   En tu caso esa banda es un widget que aparece antes del contenido del sidebar.
+   Ocultamos los 2 primeros widgets del sidebar.
+   Si algún día agregas algo arriba del logo, ajusta/borra este bloque.
+*/
+section[data-testid="stSidebar"] div[data-testid="stWidget"]:nth-child(1),
+section[data-testid="stSidebar"] div[data-testid="stWidget"]:nth-child(2){
+  display:none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ======================== BLOQUE 3: LOGIN (ANTES DEL SIDEBAR) ========================
-from auth import USERS_DB
+# ======================== BLOQUE 3: LOGIN (ROBUSTO) ========================
+from auth import USERS_DB  # <-- tu auth.py
 
 def login():
     st.title("Iniciar sesión")
@@ -119,22 +141,25 @@ def login():
         else:
             st.error("Usuario o contraseña incorrectos.")
 
+    # Evita que continúe la app si no está logueado
     if not st.session_state.get("logged_in", False):
         st.stop()
 
 if not st.session_state.get("logged_in", False):
     login()
 
-# ======================== SIDEBAR (DESPUÉS DEL LOGIN) ========================
+# Usuario autenticado disponible
 user = st.session_state.get("user", None)
 
+# ======================== BLOQUE 3.1: SIDEBAR (DESPUÉS DE LOGIN) ========================
 with st.sidebar:
-    st.markdown("<div class='uywa-logo-card'><div class='uywa-logo-center'>", unsafe_allow_html=True)
-    # Logo más nítido + centrado:
-    # - width fijo para que no se deforme
-    # - centrado por flex
-    st.image("assets/logo.png", width=155)
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    # Card con logo centrado REAL usando columnas (no HTML)
+    st.markdown("<div class='uywa-logo-card'>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 3, 1])
+    with c2:
+        # Tamaño fijo para nitidez (sube/baja 150-190 según te guste)
+        st.image("assets/logo.png", width=170)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         """
@@ -158,7 +183,7 @@ with st.sidebar:
     else:
         st.warning("Por favor, inicia sesión.")
 
-# Resto de tu app
+# ======================== BLOQUE 3.2: IDENTIDAD DE USUARIO EN MAIN ========================
 USER_KEY = f"uywa_req_{st.session_state['usuario']}"
 st.markdown(
     f"<div style='text-align:right'>👤 Usuario: <b>{st.session_state['usuario']}</b></div>",
@@ -181,7 +206,6 @@ def clean_state(keys_prefix, valid_names):
             if key.startswith(prefix):
                 found = False
                 for n in valid_names:
-                    # Busca coincidencia sólo para claves únicas (sin índices)
                     if key.endswith(f"{n}_incl_input") or key.endswith(f"{n}_input"):
                         found = True
                         break
