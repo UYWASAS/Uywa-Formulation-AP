@@ -828,7 +828,10 @@ with tabs[2]:
                         "Precio ingrediente (USD/kg)": [fmt2(p) for p in precios_ing],
                     })
                     precios_unit_np = np.array([v if pd.notnull(v) else np.inf for v in precios_unit])
-                    min_idx = int(np.nanargmin(precios_unit_np))
+                    if np.all(np.isinf(precios_unit_np)):
+                        min_idx = 0  # Valor por defecto si no hay precios válidos
+                    else:
+                        min_idx = int(np.nanargmin(precios_unit_np))
                     df_shadow["Es el más barato"] = ["✅" if i == min_idx else "" for i in range(len(df_shadow))]
                     bar_colors = ['green' if i == min_idx else 'royalblue' for i in range(len(df_shadow))]
                     fig_shadow = go.Figure()
