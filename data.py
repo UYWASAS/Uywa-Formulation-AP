@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+from requirements_presets import PRESETS
 
 def load_ingredients(uploaded_file):
     if uploaded_file is None:
@@ -25,3 +26,11 @@ def load_ingredients(uploaded_file):
 def get_nutrient_list(ingredients_df):
     exclude_cols = ["Ingrediente", "precio", "Materia seca (%)"]
     return [col for col in ingredients_df.columns if col not in exclude_cols]
+
+def get_preset_requirements(especie, etapa):
+    """Returns preset nutritional requirements for the given species and stage.
+
+    Returns a dict of the form {nutrient: {"min": float|None, "max": float|None}},
+    or an empty dict if no preset exists for the species/stage combination.
+    """
+    return PRESETS.get(especie, {}).get(etapa, {})
