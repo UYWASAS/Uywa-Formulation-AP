@@ -677,7 +677,7 @@ with tabs[2]:
                     hole=0.3
                 ))
                 fig_pie.update_layout(title="Participación de cada ingrediente en el costo total")
-                st.plotly_chart(fig_pie, use_container_width=True)
+                st.plotly_chart(fig_pie, use_container_width=True, key="chart_cost_pie")
             else:
                 fig2 = go.Figure([go.Bar(
                     x=ingredientes_seleccionados,
@@ -695,7 +695,7 @@ with tabs[2]:
                     showlegend=False,
                     template="simple_white"
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, use_container_width=True, key="chart_cost_bar")
             df_costos = pd.DataFrame({
                 "Ingrediente": ingredientes_seleccionados,
                 f"Costo aportado ({label})": [fmt2(c) for c in costos],
@@ -764,7 +764,7 @@ with tabs[2]:
                         title=f"Aporte de cada ingrediente a {nut} ({label})",
                         template="simple_white"
                     )
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key=f"chart_aporte_{nut}")
                     st.dataframe(fmt2_df(df_aporte), use_container_width=True)
                     st.markdown(
                         f"Puedes ajustar la unidad para visualizar el aporte en la escala más útil para tu análisis."
@@ -828,7 +828,7 @@ with tabs[2]:
                         title=f"Precio sombra y costo por ingrediente para {nut}",
                         template="simple_white"
                     )
-                    st.plotly_chart(fig_shadow, use_container_width=True)
+                    st.plotly_chart(fig_shadow, use_container_width=True, key=f"chart_shadow_{nut}")
                     st.dataframe(fmt2_df(df_shadow), use_container_width=True)
                     st.markdown(
                         f"**El precio sombra de {nut} es el menor costo posible para obtener una unidad de este nutriente usando el ingrediente más barato en la fórmula.**\n\n"
@@ -937,7 +937,7 @@ with tabs[3]:
                                 showlegend=False,
                                 template="simple_white"
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True, key=f"chart_compare_cost_{idx}")
                         else:
                             st.info("No hay datos suficientes en este escenario.")
 
@@ -959,7 +959,7 @@ with tabs[3]:
                                 showlegend=False,
                                 template="simple_white"
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True, key=f"chart_compare_aporte_{nut}_{idx}")
                         else:
                             st.info("No hay datos suficientes en este escenario.")
 
@@ -988,6 +988,6 @@ with tabs[3]:
                                 showlegend=False,
                                 template="simple_white"
                             )
-                            st.plotly_chart(fig, use_container_width=True)
+                            st.plotly_chart(fig, use_container_width=True, key=f"chart_compare_shadow_{nut}_{idx}")
                         else:
                             st.info("No hay datos suficientes en este escenario.")
