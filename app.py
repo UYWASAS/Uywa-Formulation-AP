@@ -765,6 +765,7 @@ with tabs[2]:
                         template="simple_white"
                     )
                     st.plotly_chart(fig, use_container_width=True, key=f"chart_aporte_{nut}")
+                    st.dataframe(fmt2_df(df_aporte), use_container_width=True)
                     st.markdown(
                         f"Puedes ajustar la unidad para visualizar el aporte en la escala más útil para tu análisis."
                     )
@@ -937,6 +938,10 @@ with tabs[3]:
                                 template="simple_white"
                             )
                             st.plotly_chart(fig, use_container_width=True, key=f"chart_compare_cost_{idx}")
+                        else:
+                            st.info("No hay datos suficientes en este escenario.")
+
+                    elif grafico_sel.startswith("Aporte de "):
                         nut = grafico_sel.replace("Aporte de ", "")
                         if nut in df_formula.columns and "% Inclusión" in df_formula.columns and "Ingrediente" in df_formula.columns:
                             valores = df_formula[nut] * df_formula["% Inclusión"] / 100
@@ -955,6 +960,10 @@ with tabs[3]:
                                 template="simple_white"
                             )
                             st.plotly_chart(fig, use_container_width=True, key=f"chart_compare_aporte_{nut}_{idx}")
+                        else:
+                            st.info("No hay datos suficientes en este escenario.")
+
+                    elif grafico_sel.startswith("Precio sombra de "):
                         nut = grafico_sel.replace("Precio sombra de ", "")
                         if nut in df_formula.columns and "precio" in df_formula.columns and "Ingrediente" in df_formula.columns:
                             precios_unit = []
@@ -980,3 +989,5 @@ with tabs[3]:
                                 template="simple_white"
                             )
                             st.plotly_chart(fig, use_container_width=True, key=f"chart_compare_shadow_{nut}_{idx}")
+                        else:
+                            st.info("No hay datos suficientes en este escenario.")
