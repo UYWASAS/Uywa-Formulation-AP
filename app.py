@@ -291,8 +291,10 @@ with tabs[0]:
                     for nutriente in nutrientes_con_preset:
                         preset = presets_disponibles[nutriente]
                         if preset.get("min") is not None:
+                            # number_input expects a float value in session state
                             st.session_state[f"nutriente_min_{nutriente}"] = float(preset["min"])
                         if preset.get("max") is not None:
+                            # text_input expects a string value in session state
                             st.session_state[f"nutriente_max_{nutriente}"] = str(preset["max"])
                     st.rerun()
 
