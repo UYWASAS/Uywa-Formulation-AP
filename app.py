@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from data import load_ingredients, get_nutrient_list
+from data import load_ingredients, get_nutrient_list, get_preset_requirements
 from optimization import DietFormulator
 
 # ======================== BLOQUE 2: ESTILO Y LOGO CON BARRA LATERAL (IGUAL A "PETS") ========================
@@ -278,6 +278,25 @@ with tabs[0]:
         )
         nutrientes_seleccionados = list(dict.fromkeys(nutrientes_seleccionados))
         clean_state(["min_", "max_"], nutrientes_seleccionados)
+
+        # ---- 6.5.1 Botón para cargar requerimientos preestablecidos ----
+        if etapa and etapa != "Otra":
+            presets_disponibles = get_preset_requirements(especie, etapa)
+            nutrientes_con_preset = [n for n in nutrientes_seleccionados if n in presets_disponibles]
+            if nutrientes_con_preset:
+                if st.button(
+                    f"Cargar requerimientos preestablecidos para {especie} – {etapa}",
+                    key="btn_cargar_presets"
+                ):
+                    for nutriente in nutrientes_con_preset:
+                        preset = presets_disponibles[nutriente]
+                        if preset.get("min") is not None:
+                            # number_input expects a float value in session state
+                            st.session_state[f"nutriente_min_{nutriente}"] = float(preset["min"])
+                        if preset.get("max") is not None:
+                            # text_input expects a string value in session state
+                            st.session_state[f"nutriente_max_{nutriente}"] = str(preset["max"])
+                    st.rerun()
 
         # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES ----
         st.write("Ingrese los valores mínimos y máximos permitidos para cada nutriente (máximo opcional):")
