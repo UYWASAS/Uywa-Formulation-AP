@@ -270,10 +270,16 @@ with tabs[0]:
 
         # ---- 6.5 Selección de nutrientes ----
         nutrientes_posibles = get_nutrient_list(ingredientes_df) if not ingredientes_df.empty else []
+        _presets_etapa = get_preset_requirements(especie, etapa) if etapa and etapa != "Otra" else {}
+        _default_nutrientes = (
+            [n for n in _presets_etapa.keys() if n in nutrientes_posibles]
+            if _presets_etapa
+            else nutrientes_posibles[:8]
+        )
         nutrientes_seleccionados = st.multiselect(
             "Nutrientes a considerar en la formulación",
             nutrientes_posibles,
-            default=nutrientes_posibles[:8],
+            default=_default_nutrientes,
             key="nutrientes_seleccionados"
         )
         nutrientes_seleccionados = list(dict.fromkeys(nutrientes_seleccionados))
