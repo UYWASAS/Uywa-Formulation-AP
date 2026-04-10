@@ -295,7 +295,7 @@ with tabs[0]:
             nutrientes_posibles,
             default=nutrientes_preseleccionados if nutrientes_preseleccionados else (nutrientes_posibles[:8] if nutrientes_posibles else []),
             key="nutrientes_seleccionados_key",
-            help="Selecciona los nutrientes a optimizar. Usa el botón de arriba para cargar del preset."
+            help="Selecciona los nutrientes a optimizar. Usa el botón de arriba para cargar desde el preset."
         )
         nutrientes_seleccionados = list(dict.fromkeys(nutrientes_seleccionados))
         st.session_state["nutrientes_seleccionados"] = nutrientes_seleccionados
