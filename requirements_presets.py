@@ -6,7 +6,7 @@
 PRESETS = {
     "Aves": {
         "Broiler Iniciación": {
-            "EMA_AVES":    {"min": 2950},
+            "EMA_POLLIT":  {"min": 2950},
             "PB":          {"min": 21.2},
             "FB":          {"min": 2.85},
             "LYS_DIS":     {"min": 1.22},
