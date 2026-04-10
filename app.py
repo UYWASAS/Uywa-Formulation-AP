@@ -1,4 +1,5 @@
 # ======================== BLOQUE 1: IMPORTS Y UTILIDADES ========================
+import io
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -369,9 +370,9 @@ with tabs[0]:
             st.markdown("**⬇️ Descargar requerimientos editados**")
             if nutrientes_seleccionados:
                 from datetime import datetime
-                import io
-                especie_slug = especie.lower().replace(" ", "_") if especie else "especie"
-                etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("ú", "u").replace("í", "i").replace("á", "a") if etapa else "etapa"
+                _accent_table = str.maketrans("óéúíáÓÉÚÍÁ", "oeuiaOEUIA")
+                especie_slug = especie.lower().replace(" ", "_").translate(_accent_table) if especie else "especie"
+                etapa_slug = etapa.lower().replace(" ", "_").translate(_accent_table) if etapa else "etapa"
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 csv_rows = ["especie,etapa,nutriente,min_value"]
                 for nutriente, vals in nutrientes_data.items():
@@ -395,7 +396,6 @@ with tabs[0]:
             )
             if uploaded_req is not None:
                 try:
-                    import io
                     df_req = pd.read_csv(io.StringIO(uploaded_req.read().decode("utf-8")))
                     required_cols = {"especie", "etapa", "nutriente", "min_value"}
                     if not required_cols.issubset(set(df_req.columns)):
