@@ -320,6 +320,33 @@ with tabs[0]:
                     st.success(f"✅ Se cargaron {len(nutrientes_con_preset)} requerimientos")
                     st.rerun()
 
+        # ---- 6.6.2 CARGA DE REQUERIMIENTOS DESDE CSV (ANTES de los inputs) ----
+        uploaded_req = st.file_uploader(
+            "⬆️ Cargar requerimientos desde archivo (CSV)",
+            type=["csv"],
+            key="uploader_requerimientos"
+        )
+        if uploaded_req is not None:
+            try:
+                df_req = pd.read_csv(uploaded_req)
+                required_cols = {"species", "stage", "nutrient", "min_value"}
+                if not required_cols.issubset(set(df_req.columns)):
+                    st.error(f"❌ El archivo CSV debe contener las columnas: {', '.join(required_cols)}")
+                else:
+                    cargados = 0
+                    for _, row in df_req.iterrows():
+                        nutriente = str(row["nutrient"])
+                        if nutriente in nutrientes_seleccionados:
+                            try:
+                                st.session_state[f"nutriente_min_{nutriente}"] = float(row["min_value"])
+                                cargados += 1
+                            except (ValueError, TypeError):
+                                pass
+                    st.success(f"✅ Se cargaron {cargados} requerimientos desde el archivo")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error al leer el archivo: {e}")
+
         # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES ----
         st.write("Ingrese los valores mínimos y máximos permitidos para cada nutriente (máximo opcional):")
         head_cols = st.columns([2, 1, 1])
@@ -381,33 +408,6 @@ with tabs[0]:
                 mime="text/csv",
                 key="btn_descargar_requerimientos"
             )
-
-        # ---- 6.6.2 CARGA DE REQUERIMIENTOS DESDE CSV ----
-        uploaded_req = st.file_uploader(
-            "⬆️ Cargar requerimientos desde archivo (CSV)",
-            type=["csv"],
-            key="uploader_requerimientos"
-        )
-        if uploaded_req is not None:
-            try:
-                df_req = pd.read_csv(uploaded_req)
-                required_cols = {"species", "stage", "nutrient", "min_value"}
-                if not required_cols.issubset(set(df_req.columns)):
-                    st.error(f"❌ El archivo CSV debe contener las columnas: {', '.join(required_cols)}")
-                else:
-                    cargados = 0
-                    for _, row in df_req.iterrows():
-                        nutriente = str(row["nutrient"])
-                        if nutriente in nutrientes_seleccionados:
-                            try:
-                                st.session_state[f"nutriente_min_{nutriente}"] = float(row["min_value"])
-                                cargados += 1
-                            except (ValueError, TypeError):
-                                pass
-                    st.success(f"✅ Se cargaron {cargados} requerimientos desde el archivo")
-                    st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error al leer el archivo: {e}")
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
