@@ -343,7 +343,6 @@ with tabs[0]:
                             except (ValueError, TypeError):
                                 pass
                     st.success(f"✅ Se cargaron {cargados} requerimientos desde el archivo")
-                    st.rerun()
             except Exception as e:
                 st.error(f"❌ Error al leer el archivo: {e}")
 
