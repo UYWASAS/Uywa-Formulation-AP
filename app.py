@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import io
+from datetime import date
 from data import load_ingredients, get_nutrient_list, get_preset_requirements
 from optimization import DietFormulator
 
@@ -315,9 +317,6 @@ with tabs[0]:
                         if preset.get("min") is not None:
                             # number_input expects a float value in session state
                             st.session_state[f"nutriente_min_{nutriente}"] = float(preset["min"])
-                        if preset.get("max") is not None:
-                            # text_input expects a string value in session state
-                            st.session_state[f"nutriente_max_{nutriente}"] = str(preset["max"])
                     st.success(f"✅ Se cargaron {len(nutrientes_con_preset)} requerimientos")
                     st.rerun()
 
@@ -363,6 +362,52 @@ with tabs[0]:
 
         req_input = nutrientes_data
         st.session_state["req_input"] = req_input
+
+        # ---- 6.6.1 DESCARGA DE REQUERIMIENTOS (CSV) ----
+        if nutrientes_seleccionados and etapa and etapa != "Otra":
+            especie_slug = especie.lower().replace(" ", "_")
+            etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
+            fecha_hoy = date.today().strftime("%Y%m%d")
+            csv_buffer = io.StringIO()
+            csv_buffer.write("species,stage,nutrient,min_value\n")
+            for nutriente, vals in nutrientes_data.items():
+                min_v = vals.get("min", 0) or 0
+                csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
+            csv_content = csv_buffer.getvalue()
+            st.download_button(
+                label="⬇️ Descargar requerimientos editados (CSV)",
+                data=csv_content,
+                file_name=f"requerimientos_{especie_slug}_{etapa_slug}_{fecha_hoy}.csv",
+                mime="text/csv",
+                key="btn_descargar_requerimientos"
+            )
+
+        # ---- 6.6.2 CARGA DE REQUERIMIENTOS DESDE CSV ----
+        uploaded_req = st.file_uploader(
+            "⬆️ Cargar requerimientos desde archivo (CSV)",
+            type=["csv"],
+            key="uploader_requerimientos"
+        )
+        if uploaded_req is not None:
+            try:
+                df_req = pd.read_csv(uploaded_req)
+                required_cols = {"species", "stage", "nutrient", "min_value"}
+                if not required_cols.issubset(set(df_req.columns)):
+                    st.error(f"❌ El archivo CSV debe contener las columnas: {', '.join(required_cols)}")
+                else:
+                    cargados = 0
+                    for _, row in df_req.iterrows():
+                        nutriente = str(row["nutrient"])
+                        if nutriente in nutrientes_seleccionados:
+                            try:
+                                st.session_state[f"nutriente_min_{nutriente}"] = float(row["min_value"])
+                                cargados += 1
+                            except (ValueError, TypeError):
+                                pass
+                    st.success(f"✅ Se cargaron {cargados} requerimientos desde el archivo")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error al leer el archivo: {e}")
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
