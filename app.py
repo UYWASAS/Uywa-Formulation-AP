@@ -315,9 +315,6 @@ with tabs[0]:
                         if preset.get("min") is not None:
                             # number_input expects a float value in session state
                             st.session_state[f"nutriente_min_{nutriente}"] = float(preset["min"])
-                        if preset.get("max") is not None:
-                            # text_input expects a string value in session state
-                            st.session_state[f"nutriente_max_{nutriente}"] = str(preset["max"])
                     st.success(f"✅ Se cargaron {len(nutrientes_con_preset)} requerimientos")
                     st.rerun()
 
@@ -363,6 +360,64 @@ with tabs[0]:
 
         req_input = nutrientes_data
         st.session_state["req_input"] = req_input
+
+        # ---- 6.6.1 DESCARGAR / CARGAR REQUERIMIENTOS ----
+        st.markdown("---")
+        col_dl, col_ul = st.columns(2)
+
+        with col_dl:
+            st.markdown("**⬇️ Descargar requerimientos editados**")
+            if nutrientes_seleccionados:
+                from datetime import datetime
+                import io
+                especie_slug = especie.lower().replace(" ", "_") if especie else "especie"
+                etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("ú", "u").replace("í", "i").replace("á", "a") if etapa else "etapa"
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                csv_rows = ["especie,etapa,nutriente,min_value"]
+                for nutriente, vals in nutrientes_data.items():
+                    csv_rows.append(f"{especie_slug},{etapa_slug},{nutriente},{vals['min']}")
+                csv_content = "\n".join(csv_rows)
+                st.download_button(
+                    label="⬇️ Descargar requerimientos editados (CSV)",
+                    data=csv_content,
+                    file_name=f"requerimientos_{especie_slug}_{etapa_slug}_{timestamp}.csv",
+                    mime="text/csv",
+                    key="btn_descargar_requerimientos"
+                )
+
+        with col_ul:
+            st.markdown("**⬆️ Cargar requerimientos desde archivo CSV**")
+            uploaded_req = st.file_uploader(
+                "Selecciona un archivo CSV",
+                type=["csv"],
+                key="uploader_requerimientos",
+                help="El archivo debe tener columnas: especie, etapa, nutriente, min_value"
+            )
+            if uploaded_req is not None:
+                try:
+                    import io
+                    df_req = pd.read_csv(io.StringIO(uploaded_req.read().decode("utf-8")))
+                    required_cols = {"especie", "etapa", "nutriente", "min_value"}
+                    if not required_cols.issubset(set(df_req.columns)):
+                        st.error(f"❌ El CSV debe tener las columnas: {', '.join(required_cols)}")
+                    else:
+                        cargados = 0
+                        for _, row in df_req.iterrows():
+                            nutriente = str(row["nutriente"]).strip()
+                            if nutriente in nutrientes_seleccionados:
+                                try:
+                                    st.session_state[f"nutriente_min_{nutriente}"] = float(row["min_value"])
+                                    cargados += 1
+                                except (ValueError, TypeError):
+                                    st.warning(f"⚠️ Valor inválido para {nutriente}, se omite.")
+                            else:
+                                st.warning(f"⚠️ Nutriente '{nutriente}' no está en los seleccionados, se omite.")
+                        st.success(f"✅ Se cargaron {cargados} requerimientos desde el archivo")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al leer el archivo: {e}")
+
+        st.markdown("---")
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
