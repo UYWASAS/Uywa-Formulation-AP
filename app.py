@@ -1,5 +1,6 @@
 # ======================== BLOQUE 1: IMPORTS Y UTILIDADES ========================
 import io
+import unicodedata
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -369,7 +370,8 @@ with tabs[0]:
             # --- Descargar ---
             with col_dl:
                 especie_csv = especie.lower().replace(" ", "_") if especie else "especie"
-                etapa_csv = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("á", "a") if etapa else "etapa"
+                etapa_raw = unicodedata.normalize("NFKD", etapa).encode("ascii", "ignore").decode("ascii") if etapa else "etapa"
+                etapa_csv = etapa_raw.lower().replace(" ", "_")
                 csv_buf = io.StringIO()
                 csv_buf.write("especie,etapa,nutriente,min_value\n")
                 for nutriente, vals in nutrientes_data.items():
@@ -393,7 +395,7 @@ with tabs[0]:
                 )
                 if uploaded_req is not None:
                     try:
-                        df_req = pd.read_csv(uploaded_req)
+                        df_req = pd.read_csv(uploaded_req, encoding="utf-8")
                         required_cols = {"especie", "etapa", "nutriente", "min_value"}
                         if not required_cols.issubset(set(df_req.columns)):
                             st.error(f"El CSV debe contener las columnas: {', '.join(required_cols)}")
