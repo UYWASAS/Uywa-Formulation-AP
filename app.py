@@ -262,38 +262,53 @@ with tabs[0]:
             "Cerdos": ["Crecimiento", "Engorde", "Reproductoras"],
             "Rumiantes": ["Terneros", "Vacas lecheras", "Vacas secas"]
         }
-        especie = st.selectbox("Especie", especies, key="especie_selectbox")
-        etapas_opciones = etapa_default.get(especie, [])
-        etapa = st.selectbox("Etapa", etapas_opciones + ["Otra"], key="etapa_selectbox")
-        if etapa == "Otra":
-            etapa = st.text_input("Ingrese nombre de la etapa", key="etapa_input")
+        col1, col2 = st.columns(2)
+        with col1:
+            especie = st.selectbox("Especie", especies, key="especie_selectbox")
+        with col2:
+            etapas_opciones = etapa_default.get(especie, [])
+            etapa = st.selectbox("Etapa", etapas_opciones + ["Otra"], key="etapa_selectbox")
+            if etapa == "Otra":
+                etapa = st.text_input("Ingrese nombre de la etapa", key="etapa_input")
+
+        # ---- 6.4.1 PASO 2: Botón para precargar nutrientes del preset ----
+        if etapa and etapa != "Otra":
+            _presets_step2 = get_preset_requirements(especie, etapa)
+            _nutrientes_posibles_step2 = get_nutrient_list(ingredientes_df) if not ingredientes_df.empty else []
+            if _presets_step2 and _nutrientes_posibles_step2:
+                _nutrientes_en_preset = [n for n in _presets_step2.keys() if n in _nutrientes_posibles_step2]
+                if _nutrientes_en_preset:
+                    if st.button(
+                        f"📋 Cargar nutrientes del preset para {especie} – {etapa}",
+                        key="btn_cargar_nutrientes_preset"
+                    ):
+                        st.session_state["nutrientes_seleccionados"] = _nutrientes_en_preset
+                        st.session_state["nutrientes_seleccionados_key"] = _nutrientes_en_preset
+                        st.success(f"✅ Se preseleccionaron {len(_nutrientes_en_preset)} nutrientes del preset")
+                        st.rerun()
 
         # ---- 6.5 Selección de nutrientes ----
         nutrientes_posibles = get_nutrient_list(ingredientes_df) if not ingredientes_df.empty else []
-        # Determinar nutrientes por defecto basado en presets
-        _presets_etapa = get_preset_requirements(especie, etapa) if etapa and etapa != "Otra" else {}
-        _default_nutrientes = (
-            [n for n in _presets_etapa.keys() if n in nutrientes_posibles]
-            if _presets_etapa and nutrientes_posibles
-            else nutrientes_posibles[:8] if nutrientes_posibles else []
-        )
+        nutrientes_preseleccionados = st.session_state.get("nutrientes_seleccionados", [])
         nutrientes_seleccionados = st.multiselect(
             "Nutrientes a considerar en la formulación",
             nutrientes_posibles,
-            default=_default_nutrientes,
-            key="nutrientes_seleccionados"
+            default=nutrientes_preseleccionados if nutrientes_preseleccionados else (nutrientes_posibles[:8] if nutrientes_posibles else []),
+            key="nutrientes_seleccionados_key",
+            help="Selecciona los nutrientes a optimizar. Usa el botón de arriba para cargar desde el preset."
         )
         nutrientes_seleccionados = list(dict.fromkeys(nutrientes_seleccionados))
+        st.session_state["nutrientes_seleccionados"] = nutrientes_seleccionados
         clean_state(["min_", "max_"], nutrientes_seleccionados)
 
-        # ---- 6.5.1 Botón para cargar requerimientos preestablecidos ----
-        if etapa and etapa != "Otra":
+        # ---- 6.5.1 PASO 4: Botón para cargar valores de requerimientos ----
+        if etapa and etapa != "Otra" and nutrientes_seleccionados:
             presets_disponibles = get_preset_requirements(especie, etapa)
             nutrientes_con_preset = [n for n in nutrientes_seleccionados if n in presets_disponibles]
             if nutrientes_con_preset:
                 if st.button(
-                    f"Cargar requerimientos preestablecidos para {especie} – {etapa}",
-                    key="btn_cargar_presets"
+                    f"🔢 Cargar requerimientos preestablecidos ({len(nutrientes_con_preset)} nutrientes)",
+                    key="btn_cargar_presets_valores"
                 ):
                     for nutriente in nutrientes_con_preset:
                         preset = presets_disponibles[nutriente]
@@ -303,6 +318,7 @@ with tabs[0]:
                         if preset.get("max") is not None:
                             # text_input expects a string value in session state
                             st.session_state[f"nutriente_max_{nutriente}"] = str(preset["max"])
+                    st.success(f"✅ Se cargaron {len(nutrientes_con_preset)} requerimientos")
                     st.rerun()
 
         # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES ----
