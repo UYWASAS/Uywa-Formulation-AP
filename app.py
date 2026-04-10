@@ -329,13 +329,13 @@ with tabs[0]:
         if uploaded_req is not None:
             try:
                 df_req = pd.read_csv(uploaded_req)
-                required_cols = {"species", "stage", "nutrient", "min_value"}
+                required_cols = {"especie", "etapa", "nutriente", "min_value"}
                 if not required_cols.issubset(set(df_req.columns)):
                     st.error(f"❌ El archivo CSV debe contener las columnas: {', '.join(required_cols)}")
                 else:
                     cargados = 0
                     for _, row in df_req.iterrows():
-                        nutriente = str(row["nutrient"])
+                        nutriente = str(row["nutriente"])
                         if nutriente in nutrientes_seleccionados:
                             try:
                                 st.session_state[f"nutriente_min_{nutriente}"] = float(row["min_value"])
@@ -396,7 +396,7 @@ with tabs[0]:
             etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
             fecha_hoy = date.today().strftime("%Y%m%d")
             csv_buffer = io.StringIO()
-            csv_buffer.write("species,stage,nutrient,min_value\n")
+            csv_buffer.write("especie,etapa,nutriente,min_value\n")
             for nutriente, vals in nutrientes_data.items():
                 min_v = vals.get("min", 0) or 0
                 csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
