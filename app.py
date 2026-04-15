@@ -346,79 +346,112 @@ with tabs[0]:
             except Exception as e:
                 st.error(f"❌ Error al leer el archivo: {e}")
 
-        # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES ----
-        with st.expander("⚙️ Requerimientos Nutricionales - Ingresar Valores", expanded=True):
-            st.write("Ingrese los valores mínimos y máximos permitidos para cada nutriente (máximo opcional):")
-            head_cols = st.columns([2, 1, 1])
-            with head_cols[0]:
-                st.markdown("**Nutriente**")
-            with head_cols[1]:
-                st.markdown("**Min**")
-            with head_cols[2]:
-                st.markdown("**Max (opcional)**")
+        # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES - TABLA UNIFICADA ----
+        st.subheader("Requerimientos Nutricionales")
+        st.write("Ingresa valores mínimos y máximos. Obtenido y Estado se actualizan en vivo.")
 
-            nutrientes_data = {}
-            for nutriente in nutrientes_seleccionados:
-                cols = st.columns([2, 1, 1])
-                with cols[0]:
-                    st.markdown(f"**{nutriente}**")
-                with cols[1]:
-                    key_min = f"nutriente_min_{nutriente}"
-                    min_val = st.number_input(
-                        label="",
-                        min_value=0.0,
-                        max_value=1e9,
-                        key=key_min,
-                        format="%.2f",
-                        help="Valor mínimo requerido"
-                    )
-                with cols[2]:
-                    key_max = f"nutriente_max_{nutriente}"
-                    max_placeholder = "Opcional: ingresa valor máximo si aplica"
-                    max_val_raw = st.text_input(
-                        label="",
-                        value="",
-                        key=key_max,
-                        help=max_placeholder,
-                        placeholder=max_placeholder
-                    )
-                    max_val = safe_float(max_val_raw, 0)
-                nutrientes_data[nutriente] = {"min": safe_float(min_val, 0), "max": max_val}
-                st.session_state[f"min_{nutriente}"] = safe_float(min_val, 0)
-                st.session_state[f"max_{nutriente}"] = max_val
+        req_preview = {}
+        for nutriente in nutrientes_seleccionados:
+            min_val = safe_float(st.session_state.get(f"nutriente_min_{nutriente}", 0), 0)
+            max_raw = st.session_state.get(f"nutriente_max_{nutriente}", 0)
+            max_val = safe_float(max_raw, 0) if pd.notna(max_raw) else 0
+            req_preview[nutriente] = {"min": min_val, "max": max_val}
 
-            req_input = nutrientes_data
-            st.session_state["req_input"] = req_input
-
-            # ---- 6.6.1 DESCARGA DE REQUERIMIENTOS (CSV) ----
-            if nutrientes_seleccionados and etapa and etapa != "Otra":
-                especie_slug = especie.lower().replace(" ", "_")
-                etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
-                fecha_hoy = date.today().strftime("%Y%m%d")
-                csv_buffer = io.StringIO()
-                csv_buffer.write("especie,etapa,nutriente,min_value\n")
-                for nutriente, vals in nutrientes_data.items():
-                    min_v = vals.get("min", 0) or 0
-                    csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
-                csv_content = csv_buffer.getvalue()
-                st.download_button(
-                    label="⬇️ Descargar requerimientos editados (CSV)",
-                    data=csv_content,
-                    file_name=f"requerimientos_{especie_slug}_{etapa_slug}_{fecha_hoy}.csv",
-                    mime="text/csv",
-                    key="btn_descargar_requerimientos"
+        preview_result_table = {"success": False}
+        if (ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and
+            nutrientes_seleccionados and len(nutrientes_seleccionados) > 0):
+            try:
+                preview_formulator_table = DietFormulator(
+                    ingredientes_df_filtrado,
+                    nutrientes_seleccionados,
+                    req_preview,
+                    min_limits,
+                    max_limits,
+                    ratios=st.session_state.get("ratios", [])
                 )
+                preview_result_table = preview_formulator_table.solve()
+            except Exception:
+                preview_result_table = {"success": False}
+
+        preview_nutrition_table = preview_result_table.get("nutritional_values", {}) if preview_result_table.get("success") else {}
+
+        nutrientes_table_data = []
+        for nutriente in nutrientes_seleccionados:
+            min_val = req_preview.get(nutriente, {}).get("min", 0)
+            max_val = req_preview.get(nutriente, {}).get("max", 0)
+            obtenido = safe_float(preview_nutrition_table.get(nutriente, 0), 0) if preview_result_table.get("success") else 0.0
+
+            if min_val > 0 and obtenido < min_val:
+                estado = "❌ Bajo"
+            elif max_val > 0 and obtenido > max_val:
+                estado = "⚠️ Alto"
+            else:
+                estado = "✅ OK"
+
+            nutrientes_table_data.append({
+                "Nutriente": nutriente,
+                "Min": min_val,
+                "Max": max_val if max_val > 0 else None,
+                "Obtenido": obtenido,
+                "Estado": estado
+            })
+
+        df_nutrients_input = st.data_editor(
+            pd.DataFrame(nutrientes_table_data),
+            use_container_width=True,
+            hide_index=True,
+            key="nutrientes_editor",
+            column_config={
+                "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True),
+                "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f"),
+                "Max": st.column_config.NumberColumn("Max (opcional)", min_value=0.0, format="%.2f"),
+                "Obtenido": st.column_config.NumberColumn("Obtenido (en vivo)", format="%.2f", disabled=True),
+                "Estado": st.column_config.TextColumn("Estado", disabled=True),
+            }
+        )
+
+        nutrientes_data = {}
+        for _, row in df_nutrients_input.iterrows():
+            nut = row["Nutriente"]
+            min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
+            max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
+
+            st.session_state[f"nutriente_min_{nut}"] = min_v
+            st.session_state[f"nutriente_max_{nut}"] = max_v
+            st.session_state[f"min_{nut}"] = min_v
+            st.session_state[f"max_{nut}"] = max_v
+            nutrientes_data[nut] = {"min": min_v, "max": max_v}
+
+        req_input = nutrientes_data
+        st.session_state["req_input"] = req_input
+
+        # ---- 6.6.1 DESCARGA DE REQUERIMIENTOS (CSV) ----
+        if nutrientes_seleccionados and etapa and etapa != "Otra":
+            especie_slug = especie.lower().replace(" ", "_")
+            etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
+            fecha_hoy = date.today().strftime("%Y%m%d")
+            csv_buffer = io.StringIO()
+            csv_buffer.write("especie,etapa,nutriente,min_value\n")
+            for nutriente, vals in nutrientes_data.items():
+                min_v = vals.get("min", 0) or 0
+                csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
+            csv_content = csv_buffer.getvalue()
+            st.download_button(
+                label="⬇️ Descargar requerimientos editados (CSV)",
+                data=csv_content,
+                file_name=f"requerimientos_{especie_slug}_{etapa_slug}_{fecha_hoy}.csv",
+                mime="text/csv",
+                key="btn_descargar_requerimientos"
+            )
 
         # ---- 6.6.3 VISTA PREVIA EN VIVO DE LA COMPOSICIÓN ----
         st.markdown("---")
         st.subheader("📊 Vista Previa: Composición Nutricional en Vivo")
 
-        # Solo mostrar si hay todos los elementos necesarios
         if (ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and
             nutrientes_seleccionados and len(nutrientes_seleccionados) > 0):
 
             try:
-                # Intentar formulación rápida para preview
                 preview_formulator = DietFormulator(
                     ingredientes_df_filtrado,
                     nutrientes_seleccionados,
@@ -433,13 +466,8 @@ with tabs[0]:
                     preview_diet = preview_result["diet"]
                     preview_cost = preview_result["cost"]
                     preview_nutrition = preview_result["nutritional_values"]
-                    status_ok = "✅ OK"
-                    status_bajo = "❌ Bajo"
-                    status_alto = "⚠️ Alto"
 
-                    # ---- Mostrar ingredientes cargados ----
                     col_ing, col_cost = st.columns([2, 1])
-
                     with col_ing:
                         st.write("**Ingredientes en la fórmula:**")
                         ing_cols = st.columns(3)
@@ -448,42 +476,17 @@ with tabs[0]:
                             col_idx = idx % 3
                             with ing_cols[col_idx]:
                                 st.write(f"🔹 {ing}: **{pct:.2f}%**")
-
                     with col_cost:
                         st.metric("💰 Costo (por 100 kg)", f"${preview_cost:.2f}")
 
-                    # ---- Tabla nutricional con Min | Max | Obtenido ----
-                    st.write("**Análisis de Nutrientes:**")
-
-                    preview_table_data = []
+                    cumplidos = 0
                     for nut in nutrientes_seleccionados:
                         min_val = req_input.get(nut, {}).get("min", 0)
                         max_val = req_input.get(nut, {}).get("max", 0)
-                        obtenido = preview_nutrition.get(nut, 0)
-
-                        # Determinar estado
-                        if min_val > 0 and obtenido < min_val:
-                            estado = status_bajo
-                        elif max_val > 0 and obtenido > max_val:
-                            estado = status_alto
-                        else:
-                            estado = status_ok
-
-                        preview_table_data.append({
-                            "Nutriente": nut,
-                            "Min": f"{min_val:.2f}" if min_val > 0 else "—",
-                            "Max": f"{max_val:.2f}" if max_val > 0 else "—",
-                            "Obtenido": f"{obtenido:.2f}",
-                            "Estado": estado,
-                            "_cumple": estado == status_ok
-                        })
-
-                    preview_df = pd.DataFrame(preview_table_data)[["Nutriente", "Min", "Max", "Obtenido", "Estado"]]
-                    st.dataframe(preview_df, use_container_width=True, hide_index=True)
-
-                    # Resumen de cumplimiento
-                    cumplidos = sum(1 for row in preview_table_data if row["_cumple"])
-                    total_nut = len(preview_table_data)
+                        obtenido = safe_float(preview_nutrition.get(nut, 0), 0)
+                        if not ((min_val > 0 and obtenido < min_val) or (max_val > 0 and obtenido > max_val)):
+                            cumplidos += 1
+                    total_nut = len(nutrientes_seleccionados)
                     st.info(f"📈 Cumplimiento: {cumplidos}/{total_nut} nutrientes dentro de rango")
                 else:
                     st.warning("⚠️ No se puede formular con las restricciones actuales. Revisa los valores.")
