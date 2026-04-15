@@ -408,6 +408,92 @@ with tabs[0]:
                 key="btn_descargar_requerimientos"
             )
 
+        # ---- 6.6.3 VISTA PREVIA EN VIVO DE LA COMPOSICIÓN ----
+        st.markdown("---")
+        st.subheader("📊 Vista Previa: Composición Nutricional en Vivo")
+
+        # Solo mostrar si hay todos los elementos necesarios
+        if (
+            ingredientes_df_filtrado is not None
+            and not ingredientes_df_filtrado.empty
+            and nutrientes_seleccionados
+            and len(nutrientes_seleccionados) > 0
+        ):
+            try:
+                # Intentar formulación rápida para preview
+                preview_formulator = DietFormulator(
+                    ingredientes_df_filtrado,
+                    nutrientes_seleccionados,
+                    req_input,
+                    min_limits,
+                    max_limits,
+                    ratios=st.session_state.get("ratios", [])
+                )
+                preview_result = preview_formulator.solve()
+
+                if preview_result["success"]:
+                    preview_diet = preview_result["diet"]
+                    preview_cost = preview_result["cost"]
+                    preview_nutrition = preview_result["nutritional_values"]
+
+                    # ---- Mostrar ingredientes cargados ----
+                    col_ing, col_cost = st.columns([2, 1])
+
+                    with col_ing:
+                        st.write("**Ingredientes en la fórmula:**")
+                        ing_cols = st.columns(3)
+                        ing_list = list(preview_diet.items())
+                        for idx, (ing, pct) in enumerate(ing_list):
+                            col_idx = idx % 3
+                            with ing_cols[col_idx]:
+                                st.write(f"🔹 {ing}: **{pct:.2f}%**")
+
+                    with col_cost:
+                        st.metric("💰 Costo (por 100 kg)", f"${preview_cost:.2f}")
+
+                    # ---- Tabla nutricional con Min | Max | Obtenido ----
+                    st.write("**Análisis de Nutrientes:**")
+
+                    preview_table_data = []
+                    for nut in nutrientes_seleccionados:
+                        min_val = req_input.get(nut, {}).get("min", 0)
+                        max_val = req_input.get(nut, {}).get("max", 0)
+                        obtenido = preview_nutrition.get(nut, 0)
+
+                        # Determinar estado
+                        if min_val > 0 and obtenido < min_val:
+                            estado = "❌ Bajo"
+                            color_bg = "🔴"
+                        elif max_val > 0 and obtenido > max_val:
+                            estado = "⚠️ Alto"
+                            color_bg = "🟡"
+                        else:
+                            estado = "✅ OK"
+                            color_bg = "🟢"
+
+                        preview_table_data.append({
+                            "": color_bg,
+                            "Nutriente": nut,
+                            "Min": f"{min_val:.2f}" if min_val > 0 else "—",
+                            "Max": f"{max_val:.2f}" if max_val > 0 else "—",
+                            "Obtenido": f"{obtenido:.2f}",
+                            "Estado": estado
+                        })
+
+                    preview_df = pd.DataFrame(preview_table_data)
+                    st.dataframe(preview_df, use_container_width=True, hide_index=True)
+
+                    # Resumen de cumplimiento
+                    cumplidos = sum(1 for row in preview_table_data if "✅" in row["Estado"])
+                    total_nut = len(preview_table_data)
+                    st.info(f"📈 Cumplimiento: {cumplidos}/{total_nut} nutrientes dentro de rango")
+                else:
+                    st.warning("⚠️ No se puede formular con las restricciones actuales. Revisa los valores.")
+            except Exception:
+                st.info("⏳ Ajusta los valores de nutrientes para ver la vista previa en vivo")
+        else:
+            st.info("ℹ️ Carga ingredientes y selecciona nutrientes para ver la vista previa")
+
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
         if "ratios" not in st.session_state:
