@@ -4,9 +4,12 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import io
+import logging
 from datetime import date
 from data import load_ingredients, get_nutrient_list, get_preset_requirements
 from optimization import DietFormulator
+
+logger = logging.getLogger(__name__)
 
 # ======================== BLOQUE 2: ESTILO Y LOGO CON BARRA LATERAL (IGUAL A "PETS") ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
@@ -408,6 +411,96 @@ with tabs[0]:
                     mime="text/csv",
                     key="btn_descargar_requerimientos"
                 )
+
+        # ---- 6.6.3 VISTA PREVIA EN VIVO DE LA COMPOSICIÓN ----
+        st.markdown("---")
+        st.subheader("📊 Vista Previa: Composición Nutricional en Vivo")
+
+        # Solo mostrar si hay todos los elementos necesarios
+        if (
+            ingredientes_df_filtrado is not None
+            and not ingredientes_df_filtrado.empty
+            and nutrientes_seleccionados
+            and len(nutrientes_seleccionados) > 0
+        ):
+            try:
+                # Intentar formulación rápida para preview
+                preview_formulator = DietFormulator(
+                    ingredientes_df_filtrado,
+                    nutrientes_seleccionados,
+                    req_input,
+                    min_limits,
+                    max_limits,
+                    ratios=st.session_state.get("ratios", [])
+                )
+                preview_result = preview_formulator.solve()
+
+                if preview_result["success"]:
+                    preview_diet = preview_result["diet"]
+                    preview_cost = preview_result["cost"]
+                    preview_nutrition = preview_result["nutritional_values"]
+
+                    # ---- Mostrar ingredientes cargados ----
+                    col_ing, col_cost = st.columns([2, 1])
+
+                    with col_ing:
+                        st.write("**Ingredientes en la fórmula:**")
+                        ing_cols = st.columns(3)
+                        ing_list = list(preview_diet.items())
+                        for idx, (ing, pct) in enumerate(ing_list):
+                            col_idx = idx % 3
+                            with ing_cols[col_idx]:
+                                st.write(f"🔹 {ing}: **{pct:.2f}%**")
+
+                    with col_cost:
+                        st.metric("💰 Costo (por 100 kg)", f"${preview_cost:.2f}")
+
+                    # ---- Tabla nutricional con Min | Max | Obtenido ----
+                    st.write("**Análisis de Nutrientes:**")
+
+                    preview_table_data = []
+                    compliant_count = 0
+                    for nut in nutrientes_seleccionados:
+                        min_val = req_input.get(nut, {}).get("min", 0)
+                        max_val = req_input.get(nut, {}).get("max", 0)
+                        obtenido = preview_nutrition.get(nut, 0)
+
+                        # Determinar estado
+                        if min_val > 0 and obtenido < min_val:
+                            estado = "❌ Bajo"
+                            color_bg = "🔴"
+                        elif max_val > 0 and obtenido > max_val:
+                            estado = "⚠️ Alto"
+                            color_bg = "🟡"
+                        else:
+                            estado = "✅ OK"
+                            color_bg = "🟢"
+                            compliant_count += 1
+
+                        preview_table_data.append({
+                            "": color_bg,
+                            "Nutriente": nut,
+                            "Min": f"{min_val:.2f}" if min_val > 0 else "—",
+                            "Max": f"{max_val:.2f}" if max_val > 0 else "—",
+                            "Obtenido": f"{obtenido:.2f}",
+                            "Estado": estado
+                        })
+
+                    preview_df = pd.DataFrame(preview_table_data)
+                    st.dataframe(preview_df, use_container_width=True, hide_index=True)
+
+                    # Resumen de cumplimiento
+                    st.info(f"📈 Cumplimiento: {compliant_count}/{len(preview_table_data)} nutrientes dentro de rango")
+                else:
+                    st.warning("⚠️ No se puede formular con las restricciones actuales. Revisa los valores.")
+            except (ValueError, TypeError, KeyError):
+                logger.warning("Invalid data types or missing keys in preview formulation inputs", exc_info=True)
+                st.info("⏳ Ajusta los valores de nutrientes para ver la vista previa en vivo")
+            except Exception:
+                logger.exception("Unexpected error during live preview formulation calculation")
+                st.info("⚠️ Ocurrió un error al calcular la vista previa en vivo. Verifica tus datos e intenta nuevamente.")
+        else:
+            st.info("ℹ️ Carga ingredientes y selecciona nutrientes para ver la vista previa")
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
