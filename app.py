@@ -347,66 +347,67 @@ with tabs[0]:
                 st.error(f"❌ Error al leer el archivo: {e}")
 
         # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES ----
-        st.write("Ingrese los valores mínimos y máximos permitidos para cada nutriente (máximo opcional):")
-        head_cols = st.columns([2, 1, 1])
-        with head_cols[0]:
-            st.markdown("**Nutriente**")
-        with head_cols[1]:
-            st.markdown("**Min**")
-        with head_cols[2]:
-            st.markdown("**Max (opcional)**")
+        with st.expander("⚙️ Requerimientos Nutricionales - Ingresar Valores", expanded=True):
+            st.write("Ingrese los valores mínimos y máximos permitidos para cada nutriente (máximo opcional):")
+            head_cols = st.columns([2, 1, 1])
+            with head_cols[0]:
+                st.markdown("**Nutriente**")
+            with head_cols[1]:
+                st.markdown("**Min**")
+            with head_cols[2]:
+                st.markdown("**Max (opcional)**")
 
-        nutrientes_data = {}
-        for nutriente in nutrientes_seleccionados:
-            cols = st.columns([2, 1, 1])
-            with cols[0]:
-                st.markdown(f"**{nutriente}**")
-            with cols[1]:
-                key_min = f"nutriente_min_{nutriente}"
-                min_val = st.number_input(
-                    label="",
-                    min_value=0.0,
-                    max_value=1e9,
-                    key=key_min,
-                    format="%.2f",
-                    help="Valor mínimo requerido"
+            nutrientes_data = {}
+            for nutriente in nutrientes_seleccionados:
+                cols = st.columns([2, 1, 1])
+                with cols[0]:
+                    st.markdown(f"**{nutriente}**")
+                with cols[1]:
+                    key_min = f"nutriente_min_{nutriente}"
+                    min_val = st.number_input(
+                        label="",
+                        min_value=0.0,
+                        max_value=1e9,
+                        key=key_min,
+                        format="%.2f",
+                        help="Valor mínimo requerido"
+                    )
+                with cols[2]:
+                    key_max = f"nutriente_max_{nutriente}"
+                    max_placeholder = "Opcional: ingresa valor máximo si aplica"
+                    max_val_raw = st.text_input(
+                        label="",
+                        value="",
+                        key=key_max,
+                        help=max_placeholder,
+                        placeholder=max_placeholder
+                    )
+                    max_val = safe_float(max_val_raw, 0)
+                nutrientes_data[nutriente] = {"min": safe_float(min_val, 0), "max": max_val}
+                st.session_state[f"min_{nutriente}"] = safe_float(min_val, 0)
+                st.session_state[f"max_{nutriente}"] = max_val
+
+            req_input = nutrientes_data
+            st.session_state["req_input"] = req_input
+
+            # ---- 6.6.1 DESCARGA DE REQUERIMIENTOS (CSV) ----
+            if nutrientes_seleccionados and etapa and etapa != "Otra":
+                especie_slug = especie.lower().replace(" ", "_")
+                etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
+                fecha_hoy = date.today().strftime("%Y%m%d")
+                csv_buffer = io.StringIO()
+                csv_buffer.write("especie,etapa,nutriente,min_value\n")
+                for nutriente, vals in nutrientes_data.items():
+                    min_v = vals.get("min", 0) or 0
+                    csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
+                csv_content = csv_buffer.getvalue()
+                st.download_button(
+                    label="⬇️ Descargar requerimientos editados (CSV)",
+                    data=csv_content,
+                    file_name=f"requerimientos_{especie_slug}_{etapa_slug}_{fecha_hoy}.csv",
+                    mime="text/csv",
+                    key="btn_descargar_requerimientos"
                 )
-            with cols[2]:
-                key_max = f"nutriente_max_{nutriente}"
-                max_placeholder = "Opcional: ingresa valor máximo si aplica"
-                max_val_raw = st.text_input(
-                    label="",
-                    value="",
-                    key=key_max,
-                    help=max_placeholder,
-                    placeholder=max_placeholder
-                )
-                max_val = safe_float(max_val_raw, 0)
-            nutrientes_data[nutriente] = {"min": safe_float(min_val, 0), "max": max_val}
-            st.session_state[f"min_{nutriente}"] = safe_float(min_val, 0)
-            st.session_state[f"max_{nutriente}"] = max_val
-
-        req_input = nutrientes_data
-        st.session_state["req_input"] = req_input
-
-        # ---- 6.6.1 DESCARGA DE REQUERIMIENTOS (CSV) ----
-        if nutrientes_seleccionados and etapa and etapa != "Otra":
-            especie_slug = especie.lower().replace(" ", "_")
-            etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
-            fecha_hoy = date.today().strftime("%Y%m%d")
-            csv_buffer = io.StringIO()
-            csv_buffer.write("especie,etapa,nutriente,min_value\n")
-            for nutriente, vals in nutrientes_data.items():
-                min_v = vals.get("min", 0) or 0
-                csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
-            csv_content = csv_buffer.getvalue()
-            st.download_button(
-                label="⬇️ Descargar requerimientos editados (CSV)",
-                data=csv_content,
-                file_name=f"requerimientos_{especie_slug}_{etapa_slug}_{fecha_hoy}.csv",
-                mime="text/csv",
-                key="btn_descargar_requerimientos"
-            )
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
