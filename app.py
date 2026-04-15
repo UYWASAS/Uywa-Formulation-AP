@@ -4,9 +4,12 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import io
+import logging
 from datetime import date
 from data import load_ingredients, get_nutrient_list, get_preset_requirements
 from optimization import DietFormulator
+
+logger = logging.getLogger(__name__)
 
 # ======================== BLOQUE 2: ESTILO Y LOGO CON BARRA LATERAL (IGUAL A "PETS") ========================
 st.set_page_config(page_title="Formulador UYWA Premium", layout="wide")
@@ -455,6 +458,7 @@ with tabs[0]:
                     st.write("**Análisis de Nutrientes:**")
 
                     preview_table_data = []
+                    compliant_count = 0
                     for nut in nutrientes_seleccionados:
                         min_val = req_input.get(nut, {}).get("min", 0)
                         max_val = req_input.get(nut, {}).get("max", 0)
@@ -470,6 +474,7 @@ with tabs[0]:
                         else:
                             estado = "✅ OK"
                             color_bg = "🟢"
+                            compliant_count += 1
 
                         preview_table_data.append({
                             "": color_bg,
@@ -484,13 +489,15 @@ with tabs[0]:
                     st.dataframe(preview_df, use_container_width=True, hide_index=True)
 
                     # Resumen de cumplimiento
-                    cumplidos = sum(1 for row in preview_table_data if "✅" in row["Estado"])
-                    total_nut = len(preview_table_data)
-                    st.info(f"📈 Cumplimiento: {cumplidos}/{total_nut} nutrientes dentro de rango")
+                    st.info(f"📈 Cumplimiento: {compliant_count}/{len(preview_table_data)} nutrientes dentro de rango")
                 else:
                     st.warning("⚠️ No se puede formular con las restricciones actuales. Revisa los valores.")
-            except Exception:
+            except (ValueError, TypeError, KeyError):
+                logger.warning("Invalid data types or missing keys in preview formulation inputs", exc_info=True)
                 st.info("⏳ Ajusta los valores de nutrientes para ver la vista previa en vivo")
+            except Exception:
+                logger.exception("Unexpected error during live preview formulation calculation")
+                st.info("⚠️ Ocurrió un error al calcular la vista previa en vivo. Verifica tus datos e intenta nuevamente.")
         else:
             st.info("ℹ️ Carga ingredientes y selecciona nutrientes para ver la vista previa")
 
