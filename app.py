@@ -128,12 +128,13 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
-def render_progress_bar(min_val, max_val, obtenido, width=15):
+def render_progress_bar(min_val, max_val, obtenido, width=12):
     """
-    Genera una barra de progreso visual con emojis y colores.
+    Genera una barra de progreso visual con emojis.
+    Retorna (bar_visual, pct_text).
     """
     if min_val == 0 and max_val == 0:
-        return "—"
+        return "—", "—"
 
     # Calcular porcentaje
     if min_val > 0:
@@ -160,7 +161,7 @@ def render_progress_bar(min_val, max_val, obtenido, width=15):
     else:
         estado = "✅"
 
-    return f"{bar} {pct_text} {estado}"
+    return f"{bar} {pct_text} {estado}", pct_text
 
 
 def clean_state(keys_prefix, valid_names):
@@ -381,10 +382,11 @@ with tabs[0]:
             except Exception as e:
                 st.error(f"❌ Error al leer el archivo: {e}")
 
-        # ---- 6.6 BLOQUE DE INPUTS DE NUTRIENTES - TABLA UNIFICADA ----
+        # ---- 6.6 TABLA UNIFICADA: INPUTS + ANÁLISIS EN VIVO ----
         st.subheader("Requerimientos Nutricionales")
-        st.write("Ingresa valores mínimos y máximos. Obtenido y Estado se actualizan en vivo.")
+        st.write("Edita Min/Max en la tabla. Las columnas Obtenido y Progreso se actualizan en vivo.")
 
+        # ---- Calcular preview para mostrar Obtenido en vivo ----
         req_preview = {}
         for nutriente in nutrientes_seleccionados:
             min_val = safe_float(st.session_state.get(f"nutriente_min_{nutriente}", 0), 0)
@@ -410,43 +412,43 @@ with tabs[0]:
 
         preview_nutrition_table = preview_result_table.get("nutritional_values", {}) if preview_result_table.get("success") else {}
 
+        # ---- Construir tabla unificada ----
         nutrientes_table_data = []
         for nutriente in nutrientes_seleccionados:
             min_val = req_preview.get(nutriente, {}).get("min", 0)
             max_val = req_preview.get(nutriente, {}).get("max", 0)
             obtenido = safe_float(preview_nutrition_table.get(nutriente, 0), 0) if preview_result_table.get("success") else 0.0
 
-            if min_val > 0 and obtenido < min_val:
-                estado = "❌ Bajo"
-            elif max_val > 0 and obtenido > max_val:
-                estado = "⚠️ Alto"
-            else:
-                estado = "✅ OK"
+            bar_visual, pct_text = render_progress_bar(min_val, max_val, obtenido)
 
             nutrientes_table_data.append({
                 "Nutriente": nutriente,
                 "Min": min_val,
                 "Max": max_val if max_val > 0 else None,
                 "Obtenido": obtenido,
-                "Estado": estado
+                "%Cumple": pct_text,
+                "Progreso": bar_visual
             })
 
-        df_nutrients_input = st.data_editor(
+        # ---- Data editor unificada ----
+        df_nutrients_unified = st.data_editor(
             pd.DataFrame(nutrientes_table_data),
             use_container_width=True,
             hide_index=True,
-            key="nutrientes_editor",
+            key="nutrientes_editor_unified",
             column_config={
-                "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True),
-                "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f"),
-                "Max": st.column_config.NumberColumn("Max (opcional)", min_value=0.0, format="%.2f"),
-                "Obtenido": st.column_config.NumberColumn("Obtenido (en vivo)", format="%.2f", disabled=True),
-                "Estado": st.column_config.TextColumn("Estado", disabled=True),
+                "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=120),
+                "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=100),
+                "Max": st.column_config.NumberColumn("Max (opcional)", min_value=0.0, format="%.2f", width=120),
+                "Obtenido": st.column_config.NumberColumn("Obtenido (en vivo)", format="%.2f", disabled=True, width=130),
+                "%Cumple": st.column_config.TextColumn("%Cumple", disabled=True, width=90),
+                "Progreso": st.column_config.TextColumn("Progreso", disabled=True, width=220),
             }
         )
 
+        # ---- Guardar cambios en session_state ----
         nutrientes_data = {}
-        for _, row in df_nutrients_input.iterrows():
+        for _, row in df_nutrients_unified.iterrows():
             nut = row["Nutriente"]
             min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
             max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
@@ -479,130 +481,68 @@ with tabs[0]:
                 key="btn_descargar_requerimientos"
             )
 
-        # ---- 6.6.3 VISTA PREVIA EN VIVO DE LA COMPOSICIÓN ----
-        st.markdown("---")
-        st.subheader("📊 Vista Previa: Análisis de Nutrientes en Vivo")
-
+        # ---- Vista Previa: Ingredientes y Cumplimiento ----
         if (ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and
-            nutrientes_seleccionados and len(nutrientes_seleccionados) > 0):
+            nutrientes_seleccionados and len(nutrientes_seleccionados) > 0 and preview_result_table.get("success")):
 
-            try:
-                preview_formulator = DietFormulator(
-                    ingredientes_df_filtrado,
-                    nutrientes_seleccionados,
-                    req_input,
-                    min_limits,
-                    max_limits,
-                    ratios=st.session_state.get("ratios", [])
-                )
-                preview_result = preview_formulator.solve()
+            st.markdown("---")
+            st.subheader("📊 Vista Previa: Ingredientes y Cumplimiento")
 
-                if preview_result["success"]:
-                    preview_diet = preview_result["diet"]
-                    preview_cost = preview_result["cost"]
-                    preview_nutrition = preview_result["nutritional_values"]
+            preview_diet = preview_result_table.get("diet", {})
+            preview_cost = preview_result_table.get("cost", 0)
 
-                    # ---- Sección 1: Ingredientes Mejorada ----
-                    st.write("### 🔹 Ingredientes en la Fórmula")
-                    col_ing_main, col_cost_main = st.columns([2, 1])
+            # ---- Ingredientes Mejorados ----
+            col_ing_main, col_cost_main = st.columns([2, 1])
 
-                    with col_ing_main:
-                        ing_cols = st.columns(3)
-                        ing_list = list(preview_diet.items())
-                        for idx, (ing, pct) in enumerate(ing_list):
-                            col_idx = idx % 3
-                            with ing_cols[col_idx]:
-                                st.markdown(
-                                    f"<div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; "
-                                    f"border-left: 4px solid #2176ff; margin-bottom: 8px;'>"
-                                    f"<b>{ing}</b><br>"
-                                    f"<span style='font-size: 14px; color: #2176ff;'>{pct:.2f}%</span>"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
-
-                    with col_cost_main:
-                        st.metric("💰 Costo", f"${preview_cost:.2f}")
-                        st.caption("por 100 kg")
-
-                    # ---- Sección 2: Tabla Nutricional Compacta ----
-                    st.write("### 📊 Análisis Nutricional")
-
-                    analysis_table_data = []
-                    cumplidos = 0
-
-                    for nut in nutrientes_seleccionados:
-                        min_val = nutrientes_data.get(nut, {}).get("min", 0)
-                        max_val = nutrientes_data.get(nut, {}).get("max", 0)
-                        obtenido = safe_float(preview_nutrition.get(nut, 0), 0)
-
-                        # Calcular porcentaje de cumplimiento
-                        if min_val > 0:
-                            pct_cumple = (obtenido / min_val) * 100
-                        elif max_val > 0:
-                            pct_cumple = (obtenido / max_val) * 100
-                        else:
-                            pct_cumple = 100
-
-                        # Generar barra de progreso
-                        bar = render_progress_bar(min_val, max_val, obtenido, width=12)
-
-                        # Determinar si cumple
-                        if not ((min_val > 0 and obtenido < min_val) or (max_val > 0 and obtenido > max_val)):
-                            cumplidos += 1
-
-                        analysis_table_data.append({
-                            "Nutriente": nut,
-                            "Min": f"{min_val:.2f}" if min_val > 0 else "—",
-                            "Max": f"{max_val:.2f}" if max_val > 0 else "—",
-                            "Obtenido": f"{obtenido:.2f}",
-                            "%Cumple": f"{pct_cumple:.1f}%" if (min_val > 0 or max_val > 0) else "—",
-                            "Progreso": bar
-                        })
-
-                    analysis_df = pd.DataFrame(analysis_table_data)
-
-                    st.dataframe(
-                        analysis_df,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Nutriente": st.column_config.TextColumn("Nutriente", width=120),
-                            "Min": st.column_config.TextColumn("Min", width=80),
-                            "Max": st.column_config.TextColumn("Max", width=80),
-                            "Obtenido": st.column_config.TextColumn("Obtenido", width=100),
-                            "%Cumple": st.column_config.TextColumn("%Cumple", width=90),
-                            "Progreso": st.column_config.TextColumn("Progreso", width=220),
-                        }
-                    )
-
-                    # ---- Sección 3: Resumen de Cumplimiento con Gauge ----
-                    total_nut = len(nutrientes_seleccionados)
-                    pct_general = (cumplidos / total_nut) * 100 if total_nut > 0 else 0
-
-                    col1, col2, col3 = st.columns(3)
-
-                    with col1:
-                        st.metric("✅ Nutrientes OK", f"{cumplidos}/{total_nut}")
-
-                    with col2:
-                        st.metric("📈 Cumplimiento", f"{pct_general:.1f}%")
-
-                    with col3:
-                        barra_general = "█" * int(pct_general / 10) + "░" * (10 - int(pct_general / 10))
+            with col_ing_main:
+                st.write("### 🔹 Ingredientes en la Fórmula")
+                ing_cols = st.columns(3)
+                ing_list = list(preview_diet.items())
+                for idx, (ing, pct) in enumerate(ing_list):
+                    col_idx = idx % 3
+                    with ing_cols[col_idx]:
                         st.markdown(
-                            f"<div style='text-align: center;'>"
-                            f"<b style='font-size: 12px;'>Progreso General</b><br>"
-                            f"<span style='font-size: 16px;'>{barra_general}</span>"
+                            f"<div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; "
+                            f"border-left: 4px solid #2176ff; margin-bottom: 8px;'>"
+                            f"<b>{ing}</b><br>"
+                            f"<span style='font-size: 14px; color: #2176ff;'>{pct:.2f}%</span>"
                             f"</div>",
                             unsafe_allow_html=True
                         )
-                else:
-                    st.warning("⚠️ No se puede formular con las restricciones actuales. Revisa los valores.")
-            except Exception as e:
-                st.info("⏳ Ajusta los valores de nutrientes para ver la vista previa en vivo")
-        else:
-            st.info("ℹ️ Carga ingredientes y selecciona nutrientes para ver la vista previa")
+
+            with col_cost_main:
+                st.metric("💰 Costo", f"${preview_cost:.2f}")
+                st.caption("por 100 kg")
+
+            # ---- Resumen de Cumplimiento ----
+            cumplidos = 0
+            for nut in nutrientes_seleccionados:
+                min_val = nutrientes_data.get(nut, {}).get("min", 0)
+                max_val = nutrientes_data.get(nut, {}).get("max", 0)
+                obtenido = preview_nutrition_table.get(nut, 0)
+                if not ((min_val > 0 and obtenido < min_val) or (max_val > 0 and obtenido > max_val)):
+                    cumplidos += 1
+
+            total_nut = len(nutrientes_seleccionados)
+            pct_general = (cumplidos / total_nut) * 100 if total_nut > 0 else 0
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("✅ Nutrientes OK", f"{cumplidos}/{total_nut}")
+
+            with col2:
+                st.metric("📈 Cumplimiento", f"{pct_general:.1f}%")
+
+            with col3:
+                barra_general = "█" * int(pct_general / 10) + "░" * (10 - int(pct_general / 10))
+                st.markdown(
+                    f"<div style='text-align: center;'>"
+                    f"<b style='font-size: 12px;'>Progreso General</b><br>"
+                    f"<span style='font-size: 16px;'>{barra_general}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
