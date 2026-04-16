@@ -337,9 +337,18 @@ with tabs[0]:
                         f"📋 Cargar nutrientes del preset para {especie} – {etapa}",
                         key="btn_cargar_nutrientes_preset"
                     ):
+                        # Solo cargar nutrientes SIN valores
                         st.session_state["nutrientes_seleccionados"] = _nutrientes_en_preset
                         st.session_state["nutrientes_seleccionados_key"] = _nutrientes_en_preset
-                        st.success(f"✅ Se preseleccionaron {len(_nutrientes_en_preset)} nutrientes del preset")
+
+                        # IMPORTANTE: Inicializar Min/Max en 0 (SIN cargar valores del preset)
+                        for nutriente in _nutrientes_en_preset:
+                            if f"nutriente_min_{nutriente}" not in st.session_state:
+                                st.session_state[f"nutriente_min_{nutriente}"] = 0.0
+                            if f"nutriente_max_{nutriente}" not in st.session_state:
+                                st.session_state[f"nutriente_max_{nutriente}"] = 0.0
+
+                        st.success(f"✅ Se preseleccionaron {len(_nutrientes_en_preset)} nutrientes (sin valores). Presiona 'Cargar requerimientos' para cargar valores del preset.")
                         st.rerun()
 
         # ---- 6.5 Selección de nutrientes ----
@@ -368,9 +377,10 @@ with tabs[0]:
                     for nutriente in nutrientes_con_preset:
                         preset = presets_disponibles[nutriente]
                         if preset.get("min") is not None:
-                            # number_input expects a float value in session state
                             st.session_state[f"nutriente_min_{nutriente}"] = float(preset["min"])
-                    st.success(f"✅ Se cargaron {len(nutrientes_con_preset)} requerimientos")
+                        if preset.get("max") is not None:
+                            st.session_state[f"nutriente_max_{nutriente}"] = float(preset["max"])
+                    st.success(f"✅ Se cargaron {len(nutrientes_con_preset)} requerimientos con valores del preset")
                     st.rerun()
 
         # ---- 6.6.2 CARGA DE REQUERIMIENTOS DESDE CSV (ANTES de los inputs) ----
