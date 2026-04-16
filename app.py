@@ -341,12 +341,12 @@ with tabs[0]:
                         st.session_state["nutrientes_seleccionados"] = _nutrientes_en_preset
                         st.session_state["nutrientes_seleccionados_key"] = _nutrientes_en_preset
 
-                        # IMPORTANTE: Forzar Min/Max en 0 (SIN cargar valores del preset)
+                        # Forzar limpiar cualquier valor previo (siempre Min/Max = 0)
                         for nutriente in _nutrientes_en_preset:
                             st.session_state[f"nutriente_min_{nutriente}"] = 0.0
                             st.session_state[f"nutriente_max_{nutriente}"] = 0.0
 
-                        st.success(f"✅ Se preseleccionaron {len(_nutrientes_en_preset)} nutrientes (sin valores). Presiona 'Cargar requerimientos' para cargar valores del preset.")
+                        st.success(f"✅ Se preseleccionaron {len(_nutrientes_en_preset)} nutrientes SIN valores. Presiona 'Cargar requerimientos' para cargar valores del preset.")
                         st.rerun()
 
         # ---- 6.5 Selección de nutrientes ----
@@ -355,7 +355,7 @@ with tabs[0]:
         nutrientes_seleccionados = st.multiselect(
             "Nutrientes a considerar en la formulación",
             nutrientes_posibles,
-            default=nutrientes_preseleccionados,
+            default=nutrientes_preseleccionados,  # Solo usa preseleccionados, NO autocarga primeros 8
             key="nutrientes_seleccionados_key",
             help="Selecciona los nutrientes a optimizar. Usa el botón de arriba para cargar desde el preset."
         )
