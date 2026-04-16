@@ -110,6 +110,7 @@ class DietFormulator:
         total_cost = 0
         nutritional_values = {}
         compliance_data = []
+        shadow_prices = {}
 
         if pulp.LpStatus[prob.status] == "Optimal":
             for i in self.ingredients_df.index:
@@ -162,12 +163,22 @@ class DietFormulator:
                     "Obtenido": obtenido,
                     "Estado": estado
                 })
+            # Extraer shadow prices de restricciones de mínimo nutricional
+            for constraint_name, constraint in prob.constraints.items():
+                if constraint_name.startswith("Min_"):
+                    nutrient = constraint_name[4:]  # remove "Min_" prefix
+                    try:
+                        shadow_prices[nutrient] = constraint.pi
+                    except AttributeError:
+                        shadow_prices[nutrient] = None
+
             return {
                 "success": True,
                 "diet": diet,
                 "cost": total_cost,
                 "nutritional_values": nutritional_values,
-                "compliance_data": compliance_data
+                "compliance_data": compliance_data,
+                "shadow_prices": shadow_prices
             }
         else:
             return {
@@ -175,7 +186,8 @@ class DietFormulator:
                 "diet": {},
                 "cost": 0,
                 "nutritional_values": {},
-                "compliance_data": []
+                "compliance_data": [],
+                "shadow_prices": {}
             }
 
     # Alias para compatibilidad con apps que llaman .solve()
