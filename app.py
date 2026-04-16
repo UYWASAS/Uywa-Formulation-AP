@@ -130,13 +130,13 @@ def safe_float(val, default=0.0):
 
 def render_progress_bar(min_val, max_val, obtenido, width=12):
     """
-    Genera una barra de progreso visual con emojis.
-    Retorna (bar_visual, pct_text).
+    Genera visualización de progreso con emoji + porcentaje.
+    Retorna (emoji_pct, pct_text).
     """
     if min_val == 0 and max_val == 0:
         return "—", "—"
 
-    # Calcular porcentaje
+    # Calcular porcentaje respecto a mínimo
     if min_val > 0:
         pct = (obtenido / min_val) * 100
     elif max_val > 0:
@@ -144,24 +144,19 @@ def render_progress_bar(min_val, max_val, obtenido, width=12):
     else:
         pct = 100
 
-    # Limitar a 100% para la barra
-    bar_pct = min(pct, 100)
-    filled = int((bar_pct / 100) * width)
-    empty = width - filled
+    # Determinar emoji según estado
+    if abs(pct - 100) < 1:  # Cumple exacto (99-101%)
+        emoji = "✅"
+    elif pct < 100:  # Por debajo del mínimo
+        emoji = "❌"
+    else:  # Por encima del mínimo
+        emoji = "⚠️"
 
-    # Generar barra
-    bar = "█" * filled + "░" * empty
-
-    # Determinar estado
+    # Formato: "✅ 100%"
     pct_text = f"{pct:.1f}%"
-    if min_val > 0 and obtenido < min_val:
-        estado = "❌"
-    elif max_val > 0 and obtenido > max_val:
-        estado = "⚠️"
-    else:
-        estado = "✅"
+    progreso_visual = f"{emoji} {pct_text}"
 
-    return f"{bar} {pct_text} {estado}", pct_text
+    return progreso_visual, pct_text
 
 
 def calculate_shadow_impact(shadow_price, total_cost):
@@ -475,7 +470,7 @@ with tabs[0]:
                     "Max": st.column_config.NumberColumn("Max (opcional)", min_value=0.0, format="%.2f", width=120),
                     "Obtenido": st.column_config.NumberColumn("Obtenido (en vivo)", format="%.2f", disabled=True, width=130),
                     "%Cumple": st.column_config.TextColumn("%Cumple", disabled=True, width=90),
-                    "Progreso": st.column_config.TextColumn("Progreso", disabled=True, width=220),
+                    "Progreso": st.column_config.TextColumn("Progreso", disabled=True, width=100),
                     "Shadow Price(%)": st.column_config.TextColumn("Shadow Price(%)", disabled=True, width=120),
                     "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
                 }
