@@ -176,6 +176,27 @@ def calculate_shadow_impact(shadow_price, total_cost):
 
 
 
+def get_gradient_color(index, total):
+    """
+    Calcula color gradiente azul según posición.
+    Oscuro (índice 0) → Claro (índice total-1)
+    """
+    gradiente = [
+        "#1f3a93",  # Azul oscuro (0-20%)
+        "#2e5ca6",  # Azul medio (20-40%)
+        "#4a7db8",  # Azul claro (40-60%)
+        "#7da8d4",  # Azul muy claro (60-80%)
+        "#c0d9ed",  # Gris azulado claro (80-100%)
+    ]
+
+    posicion = 0
+    if total > 1:
+        posicion = int((index / (total - 1)) * (len(gradiente) - 1))
+    posicion = min(posicion, len(gradiente) - 1)
+
+    return gradiente[posicion]
+
+
 def clean_state(keys_prefix, valid_names):
     for key in list(st.session_state.keys()):
         for prefix in keys_prefix:
@@ -534,30 +555,48 @@ with tabs[0]:
             preview_diet = preview_result_table.get("diet", {})
             preview_cost = preview_result_table.get("cost", 0)
 
-            # ---- Ingredientes Mejorados ----
-            col_ing_main, col_cost_main = st.columns([2, 1])
+            # ---- Ingredientes en la Fórmula (Barras Gradiente) ----
+            with st.expander("🔹 Ingredientes en la Fórmula", expanded=True):
+                ing_list_sorted = sorted(preview_diet.items(), key=lambda x: x[1], reverse=True)
+                total_ings = len(ing_list_sorted)
 
-            with col_ing_main:
-                st.write("### 🔹 Ingredientes en la Fórmula")
-                ing_cols = st.columns(3)
-                ing_list = list(preview_diet.items())
-                for idx, (ing, pct) in enumerate(ing_list):
-                    col_idx = idx % 3
-                    with ing_cols[col_idx]:
-                        st.markdown(
-                            f"<div style='background-color: #f0f2f6; padding: 12px; border-radius: 8px; "
-                            f"border-left: 4px solid #2176ff; margin-bottom: 8px;'>"
-                            f"<b>{ing}</b><br>"
-                            f"<span style='font-size: 14px; color: #2176ff;'>{pct:.2f}%</span>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
+                ing_costos = {}
+                for ing, pct in ing_list_sorted:
+                    if "Ingrediente" in ingredientes_df_filtrado.columns and ing in ingredientes_df_filtrado["Ingrediente"].values:
+                        precio = ingredientes_df_filtrado[ingredientes_df_filtrado["Ingrediente"] == ing]["precio"].values[0]
+                        costo_aportado = (precio * pct / 100) * 10  # precio por kg × inclusión × 10 = costo por 100 kg / 10
+                        ing_costos[ing] = costo_aportado
+                    else:
+                        ing_costos[ing] = 0
 
-            with col_cost_main:
-                st.metric("💰 Costo", f"${preview_cost:.2f}")
-                st.caption("por 100 kg")
+                for idx, (ing, pct) in enumerate(ing_list_sorted):
+                    color = get_gradient_color(idx, total_ings)
+                    costo = ing_costos.get(ing, 0)
+                    # Use dark text on lighter bars for sufficient contrast
+                    text_color = "#2C3E50" if idx >= (total_ings - 1) * 0.6 else "white"
 
-            # ---- Resumen de Cumplimiento ----
+                    st.markdown(
+                        f"""
+                        <div style='margin-bottom: 12px;'>
+                            <div style='display: flex; justify-content: space-between; margin-bottom: 4px;'>
+                                <span style='font-weight: bold; color: #2C3E50;'>{ing}</span>
+                                <span style='color: #666; font-size: 13px;'>{pct:.2f}% | ${costo:.2f}</span>
+                            </div>
+                            <div style='background-color: #e8eef5; border-radius: 4px; height: 24px; overflow: hidden;'>
+                                <div style='background-color: {color}; width: {pct}%; height: 100%; border-radius: 4px; 
+                                            display: flex; align-items: center; justify-content: flex-end; padding-right: 8px;
+                                            color: {text_color}; font-size: 12px; font-weight: bold;'>
+                                    {pct:.1f}%
+                                </div>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+            st.markdown("---")
+            col1, col2, col3, col4 = st.columns(4)
+
             cumplidos = 0
             for nut in nutrientes_seleccionados:
                 min_val = nutrientes_data.get(nut, {}).get("min", 0)
@@ -569,23 +608,17 @@ with tabs[0]:
             total_nut = len(nutrientes_seleccionados)
             pct_general = (cumplidos / total_nut) * 100 if total_nut > 0 else 0
 
-            col1, col2, col3 = st.columns(3)
-
             with col1:
-                st.metric("✅ Nutrientes OK", f"{cumplidos}/{total_nut}")
+                st.metric("💰 Costo", f"${preview_cost:.2f}", "por 100 kg")
 
             with col2:
-                st.metric("📈 Cumplimiento", f"{pct_general:.1f}%")
+                st.metric("✅ Nutrientes OK", f"{cumplidos}/{total_nut}")
 
             with col3:
-                barra_general = "█" * int(pct_general / 10) + "░" * (10 - int(pct_general / 10))
-                st.markdown(
-                    f"<div style='text-align: center;'>"
-                    f"<b style='font-size: 12px;'>Progreso General</b><br>"
-                    f"<span style='font-size: 16px;'>{barra_general}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
+                st.metric("📈 Cumplimiento", f"{pct_general:.1f}%")
+
+            with col4:
+                st.metric("📊 Ingredientes", f"{len(ing_list_sorted)}")
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
