@@ -472,9 +472,7 @@ with tabs[0]:
                 "Min": min_val,
                 "Max": max_val if max_val > 0 else None,
                 "Obtenido": obtenido,
-                "%Cumple": pct_text,
-                "Progreso": bar_visual,
-                "Shadow Price(%)": shadow_pct,
+                "% Logrado": bar_visual,
                 "Impacto": impacto
             })
 
@@ -486,13 +484,11 @@ with tabs[0]:
                 hide_index=True,
                 key="nutrientes_editor_unified",
                 column_config={
-                    "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=120),
-                    "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=100),
-                    "Max": st.column_config.NumberColumn("Max (opcional)", min_value=0.0, format="%.2f", width=120),
-                    "Obtenido": st.column_config.NumberColumn("Obtenido (en vivo)", format="%.2f", disabled=True, width=130),
-                    "%Cumple": st.column_config.TextColumn("%Cumple", disabled=True, width=90),
-                    "Progreso": st.column_config.TextColumn("Progreso", disabled=True, width=100),
-                    "Shadow Price(%)": st.column_config.TextColumn("Shadow Price(%)", disabled=True, width=120),
+                    "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=130),
+                    "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=90),
+                    "Max": st.column_config.NumberColumn("Max (opt)", min_value=0.0, format="%.2f", width=100),
+                    "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=110),
+                    "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
                     "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
                 }
             )
