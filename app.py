@@ -164,6 +164,23 @@ def render_progress_bar(min_val, max_val, obtenido, width=12):
     return f"{bar} {pct_text} {estado}", pct_text
 
 
+def calculate_shadow_impact(shadow_price, total_cost):
+    """Convierte shadow price a % del costo total y clasifica impacto."""
+    if shadow_price is None:
+        return "—", "—"
+    if total_cost == 0:
+        return "—", "—"
+    impact_pct = (abs(shadow_price) / total_cost) * 100
+    if impact_pct > 5:
+        impacto = "🔴 Alto"
+    elif impact_pct >= 1:
+        impacto = "🟠 Medio"
+    else:
+        impacto = "🟢 Bajo"
+    return f"{impact_pct:.1f}%", impacto
+
+
+
 def clean_state(keys_prefix, valid_names):
     for key in list(st.session_state.keys()):
         for prefix in keys_prefix:
@@ -384,7 +401,7 @@ with tabs[0]:
 
         # ---- 6.6 TABLA UNIFICADA: INPUTS + ANÁLISIS EN VIVO ----
         st.subheader("Requerimientos Nutricionales")
-        st.write("Edita Min/Max en la tabla. Las columnas Obtenido y Progreso se actualizan en vivo.")
+        st.write("Edita Min/Max en la tabla. Las columnas Obtenido, Progreso y Shadow Price se actualizan en vivo.")
 
         # ---- Calcular preview para mostrar Obtenido en vivo ----
         req_preview = {}
@@ -411,6 +428,8 @@ with tabs[0]:
                 preview_result_table = {"success": False}
 
         preview_nutrition_table = preview_result_table.get("nutritional_values", {}) if preview_result_table.get("success") else {}
+        shadow_prices_preview = preview_result_table.get("shadow_prices", {}) if preview_result_table.get("success") else {}
+        preview_cost_table = preview_result_table.get("cost", 0) if preview_result_table.get("success") else 0
 
         # ---- Construir tabla unificada ----
         nutrientes_table_data = []
@@ -421,13 +440,18 @@ with tabs[0]:
 
             bar_visual, pct_text = render_progress_bar(min_val, max_val, obtenido)
 
+            shadow_price = shadow_prices_preview.get(nutriente, None) if min_val != 0 else None
+            shadow_pct, impacto = calculate_shadow_impact(shadow_price, preview_cost_table)
+
             nutrientes_table_data.append({
                 "Nutriente": nutriente,
                 "Min": min_val,
                 "Max": max_val if max_val > 0 else None,
                 "Obtenido": obtenido,
                 "%Cumple": pct_text,
-                "Progreso": bar_visual
+                "Progreso": bar_visual,
+                "Shadow Price(%)": shadow_pct,
+                "Impacto": impacto
             })
 
         # ---- Data editor unificada ----
@@ -443,6 +467,8 @@ with tabs[0]:
                 "Obtenido": st.column_config.NumberColumn("Obtenido (en vivo)", format="%.2f", disabled=True, width=130),
                 "%Cumple": st.column_config.TextColumn("%Cumple", disabled=True, width=90),
                 "Progreso": st.column_config.TextColumn("Progreso", disabled=True, width=220),
+                "Shadow Price(%)": st.column_config.TextColumn("Shadow Price(%)", disabled=True, width=120),
+                "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
             }
         )
 
