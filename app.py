@@ -317,6 +317,53 @@ def clean_state(keys_prefix, valid_names):
                 if not found:
                     del st.session_state[key]
 
+
+# ======================== BLOQUE 4.1: GESTIÓN DE MATRIZ DE INGREDIENTES ========================
+
+def create_ingredients_csv(df_ingredientes, min_limits, max_limits, usuario):
+    """
+    Crea CSV descargable con ingredientes, ediciones y límites.
+    Incluye todas las columnas nutritivas + precio + límites.
+    """
+    df_export = df_ingredientes.copy()
+    df_export["min_inclusión"] = df_export["Ingrediente"].apply(lambda x: min_limits.get(x, 0))
+    df_export["max_inclusión"] = df_export["Ingrediente"].apply(lambda x: max_limits.get(x, 0))
+    df_export["usuario"] = usuario
+    df_export["fecha"] = date.today().isoformat()
+    return df_export.to_csv(index=False)
+
+
+def load_ingredients_csv(uploaded_file):
+    """
+    Carga CSV de ingredientes y extrae:
+    - Lista de ingredientes
+    - Límites (min/max inclusión)
+    - DataFrame completo
+    Retorna: (ing_list, min_limits, max_limits, df_loaded, errores)
+    """
+    errors = []
+    try:
+        df_loaded = pd.read_csv(uploaded_file)
+        required_cols = ["Ingrediente"]
+        if not all(col in df_loaded.columns for col in required_cols):
+            errors.append(f"❌ El archivo debe tener columna: {', '.join(required_cols)}")
+            return None, None, None, None, errors
+        ing_list = df_loaded["Ingrediente"].tolist()
+        min_limits = {}
+        max_limits = {}
+        if "min_inclusión" in df_loaded.columns:
+            for _, row in df_loaded.iterrows():
+                ing = row["Ingrediente"]
+                min_limits[ing] = safe_float(row.get("min_inclusión", 0), 0)
+        if "max_inclusión" in df_loaded.columns:
+            for _, row in df_loaded.iterrows():
+                ing = row["Ingrediente"]
+                max_limits[ing] = safe_float(row.get("max_inclusión", 0), 0)
+        return ing_list, min_limits, max_limits, df_loaded, errors
+    except Exception as e:
+        return None, None, None, None, [f"❌ Error cargando CSV: {str(e)}"]
+
+
 # ======================== BLOQUE 5: TITULO Y TABS PRINCIPALES ========================
 st.title("Gestión y Análisis de Dietas")
 
@@ -348,8 +395,66 @@ with tabs[0]:
     max_limits = {}
 
     if ingredientes_df is not None and not ingredientes_df.empty:
+
+        # ---- 6.1.2 GESTIÓN DE MATRIZ DE INGREDIENTES (Descargar/Cargar) ----
+        st.subheader("📁 Gestión de Matriz de Ingredientes")
+
+        col_desc, col_carg, col_info = st.columns([2, 2, 1.5])
+
+        with col_desc:
+            # Construir CSV con estado actual (ingredientes + límites de session_state)
+            _cur_min = {ing: st.session_state.get(f"min_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
+            _cur_max = {ing: st.session_state.get(f"ingrediente_max_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
+            csv_descarga = create_ingredients_csv(
+                ingredientes_df,
+                _cur_min,
+                _cur_max,
+                st.session_state.get("usuario", "usuario")
+            )
+            st.download_button(
+                label="⬇️ Descargar matriz actual (CSV)",
+                data=csv_descarga,
+                file_name=f"matriz_ingredientes_{date.today().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key="btn_download_matriz",
+                help="Descarga los ingredientes actuales con ediciones y límites"
+            )
+
+        with col_carg:
+            uploaded_ing_file = st.file_uploader(
+                "⬆️ Cargar matriz guardada (CSV)",
+                type=["csv"],
+                key="uploader_matriz_ingredientes",
+                help="Carga una matriz de ingredientes previamente descargada"
+            )
+
+        with col_info:
+            st.info("ℹ️ Cargar restaura ingredientes y límites")
+
+        # Procesar archivo cargado
+        if uploaded_ing_file is not None:
+            ingredientes_disp_tmp = ingredientes_df["Ingrediente"].tolist()
+            ing_list_loaded, min_lim_loaded, max_lim_loaded, df_loaded, errors_load = load_ingredients_csv(uploaded_ing_file)
+            if errors_load:
+                for error in errors_load:
+                    st.error(error)
+            else:
+                # Filtrar a los que existen en la matriz macro actual
+                ing_validos = [i for i in ing_list_loaded if i in ingredientes_disp_tmp]
+                # Pre-popular la selección (multiselect se renderiza después, por lo que este set es válido)
+                st.session_state["ingredientes_sel"] = ing_validos
+                st.session_state["min_limits_precargados"] = min_lim_loaded
+                st.session_state["max_limits_precargados"] = max_lim_loaded
+                st.session_state["_aplicar_limites_precargados"] = True
+                st.success(f"✅ Matriz cargada: {len(ing_validos)} ingredientes encontrados en la matriz macro")
+                if len(ing_validos) < len(ing_list_loaded):
+                    faltantes = [i for i in ing_list_loaded if i not in ingredientes_disp_tmp]
+                    st.warning(f"⚠️ {len(faltantes)} ingredientes no encontrados en la matriz macro: {', '.join(faltantes[:5])}{'...' if len(faltantes) > 5 else ''}")
+                st.info("Ahora puedes editar o agregar más ingredientes abajo")
+
         st.subheader("Selecciona ingredientes para formular")
         ingredientes_disp = ingredientes_df["Ingrediente"].tolist()
+
         ingredientes_sel = st.multiselect(
             "Buscar y selecciona ingredientes",
             ingredientes_disp,
@@ -360,6 +465,36 @@ with tabs[0]:
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
         clean_state(["min_", "max_"], ingredientes_sel)
+
+        # ---- 6.2.1 CARGAR LÍMITES PRECARGADOS ----
+        if st.session_state.get("_aplicar_limites_precargados"):
+            min_lim_precargados = st.session_state.get("min_limits_precargados", {})
+            max_lim_precargados = st.session_state.get("max_limits_precargados", {})
+            for ing in ingredientes_sel:
+                if ing in min_lim_precargados:
+                    st.session_state[f"min_{ing}"] = min_lim_precargados[ing]
+                if ing in max_lim_precargados:
+                    st.session_state[f"max_{ing}"] = max_lim_precargados[ing]
+            st.session_state["_aplicar_limites_precargados"] = False
+
+        # ---- 6.2.2 AGREGAR MÁS INGREDIENTES DESDE MATRIZ MACRO ----
+        if ingredientes_sel:
+            ingredientes_no_seleccionados = [i for i in ingredientes_disp if i not in ingredientes_sel]
+            if ingredientes_no_seleccionados:
+                with st.expander("➕ Agregar más ingredientes desde matriz macro", expanded=False):
+                    ingredientes_a_agregar = st.multiselect(
+                        "Selecciona ingredientes adicionales para agregar",
+                        ingredientes_no_seleccionados,
+                        default=[],
+                        help="Estos se sumarán a tu selección actual",
+                        key="ingredientes_a_agregar"
+                    )
+                    if ingredientes_a_agregar:
+                        if st.button("✅ Agregar seleccionados", key="btn_agregar_ingredientes"):
+                            ingredientes_sel = list(dict.fromkeys(ingredientes_sel + ingredientes_a_agregar))
+                            st.session_state["ingredientes_sel"] = ingredientes_sel
+                            st.success(f"✅ {len(ingredientes_a_agregar)} ingredientes agregados")
+                            st.rerun()
 
         st.subheader("¿Deseas limitar inclusión de algún ingrediente?")
         ingredientes_a_limitar = st.multiselect(
