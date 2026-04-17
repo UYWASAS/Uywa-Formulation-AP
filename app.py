@@ -449,12 +449,12 @@ with tabs[0]:
             "Buscar y selecciona ingredientes",
             ingredientes_disp,
             default=default_ing_sel,
-            help="Elige solo los ingredientes que deseas usar en la dieta.",
+            help="Elige solo los ingredientes que deseas usar en la dieta. Si cargaste una matriz, aparecerán aquí.",
             key="ingredientes_sel"
         )
 
-        # Limpiar precargados después de usar UNA SOLA VEZ
-        if default_ing_sel and ingredientes_sel == default_ing_sel:
+        # Limpiar precargados después de ser usados UNA SOLA VEZ
+        if default_ing_sel:
             st.session_state["ingredientes_precargados"] = []
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
@@ -583,15 +583,10 @@ with tabs[0]:
                         st.warning(error)
 
                 if df_cargado is not None and not df_cargado.empty and ing_encontrados:
-                    # Guardar en session_state FUERA del upload
+                    # Guardar precargados (SIN rerun, SIN botón conflictivo)
                     st.session_state["ingredientes_precargados"] = ing_encontrados
                     st.success(f"✅ Matriz cargada: {len(ing_encontrados)} ingredientes encontrados")
-                    st.info("📋 Ahora selecciona estos ingredientes en el campo de arriba o haz clic en 'Aplicar precargados'")
-
-                    # Botón para aplicar directamente
-                    if st.button("✅ Aplicar ingredientes precargados", key="btn_aplicar_precargados"):
-                        st.session_state["ingredientes_sel"] = ing_encontrados
-                        st.rerun()
+                    st.info("📋 **Selecciona estos ingredientes en el campo 'Buscar y selecciona ingredientes' de arriba ⬆️**")
 
         # ---- 6.3.1 EDICIÓN DE INGREDIENTES SELECCIONADOS ----
         if ingredientes_sel:
