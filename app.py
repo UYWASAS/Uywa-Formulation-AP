@@ -403,12 +403,13 @@ with tabs[0]:
 
         with col_desc:
             # Construir CSV con estado actual (ingredientes + límites de session_state)
-            _cur_min = {ing: st.session_state.get(f"min_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
-            _cur_max = {ing: st.session_state.get(f"ingrediente_max_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
+            # Usar los valores procesados min_{ing}/max_{ing} (float) que se actualizan con cada render
+            cur_min_limits = {ing: st.session_state.get(f"min_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
+            cur_max_limits = {ing: st.session_state.get(f"max_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
             csv_descarga = create_ingredients_csv(
                 ingredientes_df,
-                _cur_min,
-                _cur_max,
+                cur_min_limits,
+                cur_max_limits,
                 st.session_state.get("usuario", "usuario")
             )
             st.download_button(
@@ -472,9 +473,13 @@ with tabs[0]:
             max_lim_precargados = st.session_state.get("max_limits_precargados", {})
             for ing in ingredientes_sel:
                 if ing in min_lim_precargados:
+                    # ingrediente_min_{ing} es la clave del widget text_input
+                    st.session_state[f"ingrediente_min_{ing}"] = str(min_lim_precargados[ing])
                     st.session_state[f"min_{ing}"] = min_lim_precargados[ing]
                 if ing in max_lim_precargados:
-                    st.session_state[f"max_{ing}"] = max_lim_precargados[ing]
+                    # ingrediente_max_{ing} es la clave del widget number_input
+                    st.session_state[f"ingrediente_max_{ing}"] = float(max_lim_precargados[ing])
+                    st.session_state[f"max_{ing}"] = float(max_lim_precargados[ing])
             st.session_state["_aplicar_limites_precargados"] = False
 
         # ---- 6.2.2 AGREGAR MÁS INGREDIENTES DESDE MATRIZ MACRO ----
