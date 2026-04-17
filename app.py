@@ -369,6 +369,61 @@ def load_ingredients_csv(uploaded_file, ingredientes_df_macro):
         return None, None, [f"❌ Error cargando CSV: {str(e)}"]
 
 
+def on_ingredients_file_upload(ingredientes_df_macro):
+    """Callback que se ejecuta cuando el usuario sube archivo de ingredientes."""
+    uploaded_file = st.session_state.get("uploader_matriz_ingredientes")
+    if uploaded_file is not None:
+        file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+        if st.session_state.get("_last_ing_file_id") != file_id:
+            ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_file, ingredientes_df_macro)
+            if ing_encontrados and df_cargado is not None and not df_cargado.empty:
+                # Filtrar a los que existen en la matriz macro cargada
+                ingredientes_disp = ingredientes_df_macro["Ingrediente"].tolist()
+                ing_validos = [ing for ing in ing_encontrados if ing in ingredientes_disp]
+                # Establecer directamente el valor del widget multiselect (callback → antes del render)
+                st.session_state["ingredientes_sel"] = ing_validos
+                st.session_state["ingredientes_precargados"] = ing_validos
+                st.session_state["_last_ing_file_id"] = file_id
+                st.session_state["_last_ing_count"] = len(ing_validos)
+    else:
+        st.session_state.pop("_last_ing_file_id", None)
+        st.session_state.pop("_last_ing_count", None)
+
+
+def on_requirements_file_upload(ingredientes_df_macro):
+    """Callback que se ejecuta cuando el usuario sube archivo de requerimientos."""
+    uploaded_file = st.session_state.get("uploader_requerimientos")
+    if uploaded_file is not None:
+        try:
+            df_req = pd.read_csv(uploaded_file)
+            required_cols = {"especie", "etapa", "nutriente", "min_value"}
+            if required_cols.issubset(set(df_req.columns)):
+                nutrientes_cargados = df_req["nutriente"].unique().tolist()
+                # Filtrar a nutrientes válidos (columnas de la matriz macro)
+                nutrientes_posibles = get_nutrient_list(ingredientes_df_macro) if not ingredientes_df_macro.empty else []
+                nutrientes_validos = [n for n in nutrientes_cargados if n in nutrientes_posibles]
+                # Establecer directamente el valor del widget multiselect (callback → antes del render)
+                st.session_state["nutrientes_seleccionados_key"] = nutrientes_validos
+                st.session_state["nutrientes_seleccionados"] = nutrientes_validos
+                req_data = {}
+                for _, row in df_req.iterrows():
+                    nutriente = str(row["nutriente"])
+                    try:
+                        min_val = safe_float(row["min_value"], 0)
+                        max_val = safe_float(row.get("max_value"), 0) if "max_value" in df_req.columns else 0
+                        st.session_state[f"nutriente_min_{nutriente}"] = min_val
+                        st.session_state[f"nutriente_max_{nutriente}"] = max_val
+                        st.session_state[f"min_{nutriente}"] = min_val
+                        st.session_state[f"max_{nutriente}"] = max_val
+                        req_data[nutriente] = {"min": min_val, "max": max_val}
+                    except (ValueError, TypeError):
+                        pass
+                st.session_state["req_input"] = req_data
+                st.session_state["_req_load_count"] = len(nutrientes_validos)
+        except Exception as e:
+            st.session_state["_req_load_error"] = str(e)
+
+
 def create_project_zip_export(ingredientes_df, nutrientes_data, especie, etapa, usuario):
     """
     Crea ZIP con ingredientes + requerimientos para guardar proyecto.
@@ -442,29 +497,12 @@ with tabs[0]:
         st.subheader("Selecciona ingredientes para formular")
         ingredientes_disp = ingredientes_df["Ingrediente"].tolist()
 
-        # Usar precargados si existen - filtrar a los que existen en la matriz macro cargada
-        default_ing_sel = [ing for ing in st.session_state.get("ingredientes_precargados", []) if ing in ingredientes_disp]
-
         ingredientes_sel = st.multiselect(
             "Buscar y selecciona ingredientes",
             ingredientes_disp,
-            default=default_ing_sel,
             help="Elige solo los ingredientes que deseas usar en la dieta. Si cargaste una matriz, aparecerán aquí.",
             key="ingredientes_sel"
         )
-
-        # NUEVA LÓGICA: Limpiar precargados SOLO si el usuario modificó la selección
-        # Esto rompe el bucle infinito porque:
-        # - Si usuario no toca: ingredientes_sel == default_ing_sel, no limpia
-        # - Si usuario agrega más: ingredientes_sel != default_ing_sel, limpia
-        # - Si usuario quita: ingredientes_sel != default_ing_sel, limpia
-        if default_ing_sel and ingredientes_sel != default_ing_sel:
-            # Usuario modificó → limpiar precargados y resetear flag
-            st.session_state["ingredientes_precargados"] = []
-            st.session_state["_used_precargados"] = False
-        elif default_ing_sel and ingredientes_sel == default_ing_sel and not st.session_state.get("_used_precargados", False):
-            # Usuario NO modificó pero es primer uso → marcar como usado
-            st.session_state["_used_precargados"] = True
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
         clean_state(["min_", "max_"], ingredientes_sel)
@@ -554,7 +592,6 @@ with tabs[0]:
                     st.session_state[f"max_{ing}"] = safe_float(max_val, 0)
 
         # ---- 6.3 GESTIÓN DE MATRIZ DE INGREDIENTES (DESCARGAR/CARGAR) ----
-        # Este expander está FUERA del if ingredientes_sel, siempre visible
         with st.expander("📥 Descargar/Cargar matriz de ingredientes", expanded=False):
             col_desc, col_carg = st.columns([1, 1])
 
@@ -574,38 +611,22 @@ with tabs[0]:
                 else:
                     st.info("Selecciona ingredientes primero para descargar")
 
-            # CARGA: siempre visible, sin bloqueos
+            # CARGA CON CALLBACK
             with col_carg:
-                uploaded_ing_file = st.file_uploader(
+                st.file_uploader(
                     "⬆️ Cargar matriz guardada (CSV)",
                     type=["csv"],
                     key="uploader_matriz_ingredientes",
-                    help="Carga una matriz de ingredientes descargada anteriormente"
+                    help="Carga una matriz de ingredientes descargada anteriormente",
+                    on_change=on_ingredients_file_upload,
+                    args=(ingredientes_df,)
                 )
 
-            # Procesar archivo cargado - AUTO-CARGAR TODOS
-            if uploaded_ing_file is not None:
-                file_id = f"{uploaded_ing_file.name}_{uploaded_ing_file.size}"
-
-                if st.session_state.get("_last_ing_file_id") != file_id:
-                    ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_ing_file, ingredientes_df)
-
-                    if errors_load:
-                        for error in errors_load:
-                            st.warning(error)
-
-                    if df_cargado is not None and not df_cargado.empty and ing_encontrados:
-                        # GUARDAR TODOS los ingredientes encontrados en precargados
-                        st.session_state["ingredientes_precargados"] = ing_encontrados
-                        st.session_state["_last_ing_file_id"] = file_id
-                        st.session_state["_last_ing_count"] = len(ing_encontrados)
-                        st.rerun()  # El multiselect verá los precargados en el próximo render
-                else:
-                    n = st.session_state.get("_last_ing_count", 0)
-                    st.success(f"✅ Matriz cargada: {n} ingredientes encontrados")
-                    st.info(f"📋 Los {n} ingredientes se cargarán automáticamente en la selección de abajo")
-            else:
-                st.session_state.pop("_last_ing_file_id", None)
+            # Mostrar estado de carga
+            n = st.session_state.get("_last_ing_count", 0)
+            if n > 0:
+                st.success(f"✅ Matriz cargada: {n} ingredientes encontrados")
+                st.info(f"📋 Los {n} ingredientes se cargarán automáticamente en la selección de arriba ⬆️")
 
         # ---- 6.3.1 EDICIÓN DE INGREDIENTES SELECCIONADOS ----
         if ingredientes_sel:
@@ -698,57 +719,26 @@ with tabs[0]:
                     st.rerun()
 
         # ---- 6.6.2 CARGA DE REQUERIMIENTOS DESDE CSV (ANTES de los inputs) ----
-        uploaded_req = st.file_uploader(
+        st.file_uploader(
             "⬆️ Cargar requerimientos desde archivo (CSV)",
             type=["csv"],
-            key="uploader_requerimientos"
+            key="uploader_requerimientos",
+            help="Columnas requeridas: especie, etapa, nutriente, min_value, max_value (opcional)",
+            on_change=on_requirements_file_upload,
+            args=(ingredientes_df,)
         )
-        if uploaded_req is not None:
-            try:
-                df_req = pd.read_csv(uploaded_req)
-                required_cols = {"especie", "etapa", "nutriente", "min_value"}
-                if not required_cols.issubset(set(df_req.columns)):
-                    st.error(f"❌ El archivo CSV debe contener las columnas: {', '.join(required_cols)}")
-                else:
-                    # EXTRAER nutrientes únicos
-                    nutrientes_cargados = df_req["nutriente"].unique().tolist()
 
-                    # Guardar nutrientes seleccionados (para que el multiselect los vea)
-                    st.session_state["nutrientes_seleccionados"] = nutrientes_cargados
-                    # NO modificar nutrientes_seleccionados_key (es el key del widget)
+        # Mostrar errores de carga si los hubo
+        if st.session_state.get("_req_load_error"):
+            st.error(f"❌ Error al leer archivo: {st.session_state.pop('_req_load_error')}")
 
-                    # Guardar valores de requerimientos
-                    req_data = {}
-                    cargados = 0
-
-                    for _, row in df_req.iterrows():
-                        nutriente = str(row["nutriente"])
-                        try:
-                            min_val = safe_float(row["min_value"], 0)
-                            max_val = safe_float(row.get("max_value"), 0) if "max_value" in df_req.columns else 0
-
-                            # Guardar en session_state con la nomenclatura correcta
-                            st.session_state[f"nutriente_min_{nutriente}"] = min_val
-                            st.session_state[f"nutriente_max_{nutriente}"] = max_val
-                            st.session_state[f"min_{nutriente}"] = min_val
-                            st.session_state[f"max_{nutriente}"] = max_val
-
-                            # Guardar en dict para req_input
-                            req_data[nutriente] = {"min": min_val, "max": max_val}
-                            cargados += 1
-                        except (ValueError, TypeError):
-                            pass
-
-                    # Guardar el dict completo de requerimientos
-                    st.session_state["req_input"] = req_data
-
-                    st.success(f"✅ Se cargaron {cargados} requerimientos de {len(nutrientes_cargados)} nutrientes")
-                    st.info(f"📋 {len(nutrientes_cargados)} nutrientes seleccionados: {', '.join(nutrientes_cargados[:5])}{'...' if len(nutrientes_cargados) > 5 else ''}")
-                    # SOLO hacer rerun si la carga fue exitosa
-                    if cargados > 0:
-                        st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error al leer el archivo: {e}")
+        # Mostrar estado de carga
+        n_req = st.session_state.get("_req_load_count", 0)
+        if n_req > 0:
+            nutrientes_cargados_preview = st.session_state.get("nutrientes_seleccionados", [])
+            st.success(f"✅ Se cargaron {n_req} requerimientos")
+            if nutrientes_cargados_preview:
+                st.info(f"📋 {n_req} nutrientes seleccionados: {', '.join(nutrientes_cargados_preview[:5])}{'...' if len(nutrientes_cargados_preview) > 5 else ''}")
 
         # ---- 6.6 TABLA UNIFICADA: INPUTS + ANÁLISIS EN VIVO ----
         st.subheader("Requerimientos Nutricionales")
