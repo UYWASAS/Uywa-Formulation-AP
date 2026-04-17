@@ -477,39 +477,12 @@ with tabs[0]:
             shadow_price = shadow_prices_preview.get(nutriente, None) if min_val != 0 else None
             shadow_pct, impacto = calculate_shadow_impact(shadow_price, preview_cost_table)
 
-            # Calcular brecha
-            brecha_text = "—"
-            if min_val > 0 and obtenido < min_val:
-                brecha_val = min_val - obtenido
-                brecha_text = f"❌ FALTA {brecha_val:.2f}"
-            elif max_val > 0 and obtenido > max_val:
-                brecha_val = obtenido - max_val
-                brecha_text = f"⚠️ EXCESO {brecha_val:.2f}"
-
-            # Determinar si este nutriente es el factor limitante
-            limitante_text = "—"
-            if preview_result_table.get("success"):
-                if min_val > 0 and obtenido < min_val:
-                    brecha_pct = (obtenido / min_val * 100) if min_val > 0 else 0
-                    if brecha_pct < 50:
-                        limitante_text = "🔴 BLOQUEA"
-                    elif brecha_pct < 85:
-                        limitante_text = "🟡 Crítico"
-                    else:
-                        limitante_text = "🟠 Bajo"
-                elif max_val > 0 and obtenido > max_val:
-                    limitante_text = "⚠️ EXCESO"
-                elif min_val > 0 or max_val > 0:
-                    limitante_text = "🟢 OK"
-
             nutrientes_table_data.append({
                 "Nutriente": nutriente,
                 "Min": min_val,
                 "Max": max_val if max_val > 0 else None,
                 "Obtenido": obtenido,
                 "% Logrado": bar_visual,
-                "Brecha": brecha_text,
-                "Limitante": limitante_text,
                 "Shadow Price": shadow_pct,
                 "Impacto": impacto
             })
@@ -527,8 +500,6 @@ with tabs[0]:
                     "Max": st.column_config.NumberColumn("Max (opt)", min_value=0.0, format="%.2f", width=100),
                     "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=110),
                     "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
-                    "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=120),
-                    "Limitante": st.column_config.TextColumn("Limitante", disabled=True, width=120),
                     "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=110),
                     "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=110),
                 }
