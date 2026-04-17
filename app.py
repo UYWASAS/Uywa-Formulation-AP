@@ -594,9 +594,10 @@ with tabs[0]:
                 else:
                     n = st.session_state.get("_last_ing_count", 0)
                     st.success(f"✅ Matriz cargada: {n} ingredientes encontrados")
-                    st.info(f"📋 Los {n} ingredientes se cargarán automáticamente en la selección de abajo")
+                    st.info(f"📋 Los {n} ingredientes se cargaron automáticamente en la selección de arriba ⬆️")
             else:
                 st.session_state.pop("_last_ing_file_id", None)
+                st.session_state.pop("_last_ing_count", None)
 
         # ---- 6.3.1 EDICIÓN DE INGREDIENTES SELECCIONADOS ----
         if ingredientes_sel:
