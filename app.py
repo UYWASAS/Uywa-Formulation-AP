@@ -588,11 +588,9 @@ with tabs[0]:
                     if df_cargado is not None and not df_cargado.empty and ing_encontrados:
                         # GUARDAR TODOS los ingredientes encontrados en precargados
                         st.session_state["ingredientes_precargados"] = ing_encontrados
-                        # Establecer directamente el valor del multiselect para que se vea sin importar si la key ya existe
-                        st.session_state["ingredientes_sel"] = ing_encontrados
                         st.session_state["_last_ing_file_id"] = file_id
                         st.session_state["_last_ing_count"] = len(ing_encontrados)
-                        st.rerun()
+                        st.rerun()  # El multiselect verá los precargados en el próximo render
                 else:
                     n = st.session_state.get("_last_ing_count", 0)
                     st.success(f"✅ Matriz cargada: {n} ingredientes encontrados")
