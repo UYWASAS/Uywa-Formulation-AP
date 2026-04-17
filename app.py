@@ -175,6 +175,111 @@ def calculate_shadow_impact(shadow_price, total_cost):
     return f"{impact_pct:.1f}%", impacto
 
 
+def calculate_margin(obtenido, min_val):
+    """Calcula margen como % respecto al mínimo."""
+    if min_val == 0 or min_val is None:
+        return "N/A"
+    margin = ((obtenido - min_val) / min_val) * 100
+    return f"{margin:+.1f}%" if margin >= 0 else f"{margin:.1f}%"
+
+
+def get_margin_emoji(obtenido, min_val):
+    """Emoji para margen."""
+    if min_val == 0 or min_val is None:
+        return ""
+    margin = ((obtenido - min_val) / min_val) * 100
+    if margin >= 0:
+        return "✅" if margin > 0 else "—"
+    else:
+        return "❌"
+
+
+def calculate_marginal_cost(shadow_pct, total_cost):
+    """Convierte shadow price % a costo marginal en $/kg."""
+    if shadow_pct == "—" or total_cost == 0:
+        return "—"
+    try:
+        shadow_numeric = float(shadow_pct.replace("%", ""))
+        marginal_cost = (shadow_numeric / 100) * total_cost
+        return f"${marginal_cost:.2f}/kg"
+    except Exception:
+        return "—"
+
+
+def classify_impact_advanced(shadow_pct):
+    """Clasifica impacto según Shadow Price: >2% Alto, 0.5-2% Medio, <0.5% Bajo."""
+    if shadow_pct == "—":
+        return "🟢 Bajo"
+    try:
+        shadow_numeric = float(shadow_pct.replace("%", ""))
+        if shadow_numeric > 2:
+            return "🔴 Alto"
+        elif shadow_numeric >= 0.5:
+            return "🟠 Medio"
+        else:
+            return "🟢 Bajo"
+    except Exception:
+        return "🟢 Bajo"
+
+
+def get_alert_status(obtenido, min_val, max_val, shadow_pct):
+    """
+    Genera alerta según 3 escenarios:
+    - ❌ Incumplimiento: Obtenido < Min
+    - 🔴 Limitante: Shadow Price > 1%
+    - 🟠 Sobreformulación: Obtenido > Min*1.10 AND Shadow Price ≈ 0%
+    - ✅ OK: Cumple
+    """
+    if min_val > 0 and obtenido < min_val:
+        return "❌ Incump"
+
+    try:
+        shadow_numeric = float(shadow_pct.replace("%", "")) if shadow_pct != "—" else 0
+    except Exception:
+        shadow_numeric = 0
+
+    if shadow_numeric > 1:
+        return "🔴 Limitante"
+
+    if min_val > 0 and obtenido > min_val * 1.10 and shadow_numeric < 0.1:
+        return "🟠 Sobreform"
+
+    return "✅ OK"
+
+
+def get_limiting_ingredient(nutriente, preview_diet, ingredientes_df_filtrado):
+    """
+    Identifica el ingrediente que MÁS contribuye a este nutriente.
+    Retorna: "Ingrediente (%)".
+    """
+    try:
+        if nutriente not in ingredientes_df_filtrado.columns:
+            return "—"
+
+        aportes = {}
+        total_aporte = 0
+
+        for ing, pct_dieta in preview_diet.items():
+            if ing in ingredientes_df_filtrado["Ingrediente"].values:
+                contenido = ingredientes_df_filtrado[
+                    ingredientes_df_filtrado["Ingrediente"] == ing
+                ][nutriente].values[0]
+                aporte = (contenido * pct_dieta / 100) if pct_dieta > 0 else 0
+                aportes[ing] = aporte
+                total_aporte += aporte
+
+        if total_aporte == 0 or not aportes:
+            return "—"
+
+        ing_top = max(aportes.items(), key=lambda x: x[1])
+        ing_name = ing_top[0]
+        ing_pct = (ing_top[1] / total_aporte * 100) if total_aporte > 0 else 0
+
+        return f"{ing_name} ({ing_pct:.0f}%)"
+    except Exception:
+        return "—"
+
+
 
 def get_gradient_color(index, total):
     """
@@ -425,7 +530,7 @@ with tabs[0]:
 
         # ---- 6.6 TABLA UNIFICADA: INPUTS + ANÁLISIS EN VIVO ----
         st.subheader("Requerimientos Nutricionales")
-        st.write("Edita Min/Max en la tabla. Las columnas Obtenido, Progreso y Shadow Price se actualizan en vivo.")
+        st.write("Tabla de análisis nutricional con LP. Todas las columnas son de solo lectura e informativas.")
 
         # ---- PASO 1: Leer estado actual (puede ser viejo o nuevo) ----
         req_preview = {}
@@ -465,7 +570,7 @@ with tabs[0]:
         shadow_prices_preview = preview_result_table.get("shadow_prices", {}) if preview_result_table.get("success") else {}
         preview_cost_table = preview_result_table.get("cost", 0) if preview_result_table.get("success") else 0
 
-        # ---- PASO 3: Construir tabla con datos frescos y columna Limitante ----
+        # ---- PASO 3: Construir tabla avanzada con análisis LP ----
         nutrientes_table_data = []
         for nutriente in nutrientes_seleccionados:
             min_val = req_preview.get(nutriente, {}).get("min", 0)
@@ -475,16 +580,33 @@ with tabs[0]:
             bar_visual, pct_text = render_progress_bar(min_val, max_val, obtenido)
 
             shadow_price = shadow_prices_preview.get(nutriente, None) if min_val != 0 else None
-            shadow_pct, impacto = calculate_shadow_impact(shadow_price, preview_cost_table)
+            shadow_pct, impacto_simple = calculate_shadow_impact(shadow_price, preview_cost_table)
+
+            # Nuevos cálculos
+            brecha = obtenido - min_val if min_val > 0 else 0
+            margin_text = calculate_margin(obtenido, min_val)
+            margin_emoji = get_margin_emoji(obtenido, min_val)
+            marginal_cost = calculate_marginal_cost(shadow_pct, preview_cost_table)
+            impacto_avanzado = classify_impact_advanced(shadow_pct)
+            alert_status = get_alert_status(obtenido, min_val, max_val, shadow_pct)
+            ing_limitante = get_limiting_ingredient(
+                nutriente,
+                preview_result_table.get("diet", {}),
+                ingredientes_df_filtrado
+            )
 
             nutrientes_table_data.append({
                 "Nutriente": nutriente,
                 "Min": min_val,
-                "Max": max_val if max_val > 0 else None,
                 "Obtenido": obtenido,
                 "% Logrado": bar_visual,
+                "Brecha": f"{brecha:+.2f}" if brecha != 0 else "0.00",
+                "Margen(%)": f"{margin_emoji} {margin_text}".strip(),
                 "Shadow Price": shadow_pct,
-                "Impacto": impacto
+                "Costo Marginal": marginal_cost,
+                "Impacto": impacto_avanzado,
+                "Alerta": alert_status,
+                "Ing Limitante": ing_limitante
             })
 
         # ---- PASO 4: Renderizar formulario con datos actualizados ----
@@ -495,13 +617,17 @@ with tabs[0]:
                 hide_index=True,
                 key="nutrientes_editor_unified",
                 column_config={
-                    "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=130),
-                    "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=90),
-                    "Max": st.column_config.NumberColumn("Max (opt)", min_value=0.0, format="%.2f", width=100),
-                    "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=110),
-                    "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
-                    "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=110),
-                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=110),
+                    "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=110),
+                    "Min": st.column_config.NumberColumn("Min", format="%.2f", disabled=True, width=80),
+                    "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=100),
+                    "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=95),
+                    "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=85),
+                    "Margen(%)": st.column_config.TextColumn("Margen(%)", disabled=True, width=95),
+                    "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=105),
+                    "Costo Marginal": st.column_config.TextColumn("Costo Marginal", disabled=True, width=110),
+                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=95),
+                    "Alerta": st.column_config.TextColumn("Alerta", disabled=True, width=100),
+                    "Ing Limitante": st.column_config.TextColumn("Ing Limitante", disabled=True, width=130),
                 }
             )
 
@@ -516,7 +642,7 @@ with tabs[0]:
             for _, row in df_nutrients_unified.iterrows():
                 nut = row["Nutriente"]
                 min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
-                max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
+                max_v = safe_float(req_preview.get(nut, {}).get("max", 0), 0)
 
                 st.session_state[f"nutriente_min_{nut}"] = min_v
                 st.session_state[f"nutriente_max_{nut}"] = max_v
