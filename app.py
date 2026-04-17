@@ -708,9 +708,81 @@ with tabs[0]:
                     st.session_state["last_diet"] = result["diet"]
                     st.session_state["last_cost"] = result["cost"]
                     st.session_state["last_nutritional_values"] = result["nutritional_values"]
+                    st.session_state["formulacion_result"] = {"success": True}
                     st.success("¡Formulación realizada!")
                 else:
+                    st.session_state["formulacion_result"] = {"success": False}
                     st.error("No se pudo formular la dieta: " + result.get("message", "Error desconocido"))
+
+            # ---- 6.10 ANÁLISIS DE RESTRICCIONES ----
+            if "formulacion_result" in st.session_state and not st.session_state["formulacion_result"].get("success"):
+                with st.expander("🔍 Análisis de Restricciones - Qué falta alcanzar", expanded=True):
+                    st.write("**Revisión detallada de cada restricción:**")
+
+                    try:
+                        # Ejecutar preview sin restricciones mínimas nutricionales para ver qué se puede alcanzar
+                        req_no_min = {n: {"min": 0, "max": req_input.get(n, {}).get("max", 0)} for n in nutrientes_seleccionados}
+                        preview_formulator = DietFormulator(
+                            ingredientes_df_filtrado,
+                            nutrientes_seleccionados,
+                            req_no_min,
+                            min_limits,
+                            max_limits,
+                            ratios=st.session_state.get("ratios", [])
+                        )
+                        preview_result = preview_formulator.solve()
+
+                        if preview_result.get("success"):
+                            preview_nutrition = preview_result.get("nutritional_values", {})
+
+                            restricciones_data = []
+                            for nutriente in nutrientes_seleccionados:
+                                min_val = req_input.get(nutriente, {}).get("min", 0)
+                                try:
+                                    min_val = float(min_val)
+                                except (ValueError, TypeError):
+                                    min_val = 0
+                                obtenido = preview_nutrition.get(nutriente, 0)
+
+                                if min_val > 0:
+                                    if obtenido < min_val:
+                                        brecha = min_val - obtenido
+                                        estado = f"❌ FALTA {brecha:.2f}"
+                                        indicator = "🔴"
+                                    else:
+                                        brecha = 0
+                                        estado = "✅ Cumple"
+                                        indicator = "🟢"
+                                else:
+                                    brecha = 0
+                                    estado = "—"
+                                    indicator = "⚪"
+
+                                restricciones_data.append({
+                                    "": indicator,
+                                    "Nutriente": nutriente,
+                                    "Min": f"{min_val:.2f}" if min_val > 0 else "—",
+                                    "Obtenido": f"{obtenido:.2f}",
+                                    "Brecha": f"{brecha:.2f}" if brecha > 0 else "—",
+                                    "Estado": estado
+                                })
+
+                            restricciones_df = pd.DataFrame(restricciones_data)
+                            st.dataframe(restricciones_df, use_container_width=True, hide_index=True)
+
+                            brechas = [row for row in restricciones_data if "FALTA" in row["Estado"]]
+                            if brechas:
+                                st.error(f"⚠️ **{len(brechas)} restricción(es) sin cumplir:**")
+                                for row in brechas:
+                                    st.write(f"  • {row['Nutriente']}: {row['Estado']}")
+                                st.info("💡 **Sugerencias:**\n"
+                                        "1. Aumenta los límites máximos de ingredientes restrictivos\n"
+                                        "2. Añade ingredientes con mayor contenido de estos nutrientes\n"
+                                        "3. Relaja el mínimo si no es estrictamente necesario")
+                        else:
+                            st.warning("No se puede generar análisis (los límites de ingredientes también son inviables)")
+                    except Exception as e:
+                        st.warning(f"Error generando análisis: {str(e)}")
         else:
             st.info("Carga los ingredientes, selecciona y edita, luego configura nutrientes para comenzar.")
 
