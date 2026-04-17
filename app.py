@@ -453,10 +453,18 @@ with tabs[0]:
             key="ingredientes_sel"
         )
 
-        # Limpiar precargados DESPUÉS del render - para que next render no los use
-        # Esto permite que se usen en este render pero no en siguientes
-        if default_ing_sel and ingredientes_sel:  # Solo si fueron efectivamente seleccionados
+        # NUEVA LÓGICA: Limpiar precargados SOLO si el usuario modificó la selección
+        # Esto rompe el bucle infinito porque:
+        # - Si usuario no toca: ingredientes_sel == default_ing_sel, no limpia
+        # - Si usuario agrega más: ingredientes_sel != default_ing_sel, limpia
+        # - Si usuario quita: ingredientes_sel != default_ing_sel, limpia
+        if default_ing_sel and ingredientes_sel != default_ing_sel:
+            # Usuario modificó → limpiar precargados y resetear flag
             st.session_state["ingredientes_precargados"] = []
+            st.session_state["_used_precargados"] = False
+        elif default_ing_sel and ingredientes_sel == default_ing_sel and not st.session_state.get("_used_precargados", False):
+            # Usuario NO modificó pero es primer uso → marcar como usado
+            st.session_state["_used_precargados"] = True
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
         clean_state(["min_", "max_"], ingredientes_sel)
@@ -736,7 +744,9 @@ with tabs[0]:
 
                     st.success(f"✅ Se cargaron {cargados} requerimientos de {len(nutrientes_cargados)} nutrientes")
                     st.info(f"📋 {len(nutrientes_cargados)} nutrientes seleccionados: {', '.join(nutrientes_cargados[:5])}{'...' if len(nutrientes_cargados) > 5 else ''}")
-                    st.rerun()  # CRÍTICO: para que se rendericen los nutrientes cargados
+                    # SOLO hacer rerun si la carga fue exitosa
+                    if cargados > 0:
+                        st.rerun()
             except Exception as e:
                 st.error(f"❌ Error al leer el archivo: {e}")
 
