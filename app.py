@@ -588,6 +588,8 @@ with tabs[0]:
                     if df_cargado is not None and not df_cargado.empty and ing_encontrados:
                         # GUARDAR TODOS los ingredientes encontrados en precargados
                         st.session_state["ingredientes_precargados"] = ing_encontrados
+                        # Establecer directamente el valor del multiselect para que se vea sin importar si la key ya existe
+                        st.session_state["ingredientes_sel"] = ing_encontrados
                         st.session_state["_last_ing_file_id"] = file_id
                         st.session_state["_last_ing_count"] = len(ing_encontrados)
                         st.rerun()
@@ -701,16 +703,41 @@ with tabs[0]:
                 if not required_cols.issubset(set(df_req.columns)):
                     st.error(f"❌ El archivo CSV debe contener las columnas: {', '.join(required_cols)}")
                 else:
+                    # EXTRAER nutrientes únicos
+                    nutrientes_cargados = df_req["nutriente"].unique().tolist()
+
+                    # Guardar nutrientes seleccionados (para que el multiselect los vea)
+                    st.session_state["nutrientes_seleccionados"] = nutrientes_cargados
+                    st.session_state["nutrientes_seleccionados_key"] = nutrientes_cargados
+
+                    # Guardar valores de requerimientos
+                    req_data = {}
                     cargados = 0
+
                     for _, row in df_req.iterrows():
                         nutriente = str(row["nutriente"])
-                        if nutriente in nutrientes_seleccionados:
-                            try:
-                                st.session_state[f"nutriente_min_{nutriente}"] = float(row["min_value"])
-                                cargados += 1
-                            except (ValueError, TypeError):
-                                pass
-                    st.success(f"✅ Se cargaron {cargados} requerimientos desde el archivo")
+                        try:
+                            min_val = safe_float(row["min_value"], 0)
+                            max_val = safe_float(row.get("max_value"), 0) if "max_value" in df_req.columns else 0
+
+                            # Guardar en session_state con la nomenclatura correcta
+                            st.session_state[f"nutriente_min_{nutriente}"] = min_val
+                            st.session_state[f"nutriente_max_{nutriente}"] = max_val
+                            st.session_state[f"min_{nutriente}"] = min_val
+                            st.session_state[f"max_{nutriente}"] = max_val
+
+                            # Guardar en dict para req_input
+                            req_data[nutriente] = {"min": min_val, "max": max_val}
+                            cargados += 1
+                        except (ValueError, TypeError):
+                            pass
+
+                    # Guardar el dict completo de requerimientos
+                    st.session_state["req_input"] = req_data
+
+                    st.success(f"✅ Se cargaron {cargados} requerimientos de {len(nutrientes_cargados)} nutrientes")
+                    st.info(f"📋 {len(nutrientes_cargados)} nutrientes seleccionados: {', '.join(nutrientes_cargados[:5])}{'...' if len(nutrientes_cargados) > 5 else ''}")
+                    st.rerun()  # CRÍTICO: para que se rendericen los nutrientes cargados
             except Exception as e:
                 st.error(f"❌ Error al leer el archivo: {e}")
 
