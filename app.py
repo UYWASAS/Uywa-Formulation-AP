@@ -320,48 +320,91 @@ def clean_state(keys_prefix, valid_names):
 
 # ======================== BLOQUE 4.1: GESTIÓN DE MATRIZ DE INGREDIENTES ========================
 
-def create_ingredients_csv(df_ingredientes, min_limits, max_limits, usuario):
+def create_ingredients_csv(df_ingredientes):
     """
-    Crea CSV descargable con ingredientes, ediciones y límites.
-    Incluye todas las columnas nutritivas + precio + límites.
+    Crea CSV descargable con los ingredientes seleccionados (sin límites).
     """
     df_export = df_ingredientes.copy()
-    df_export["min_inclusión"] = df_export["Ingrediente"].apply(lambda x: min_limits.get(x, 0))
-    df_export["max_inclusión"] = df_export["Ingrediente"].apply(lambda x: max_limits.get(x, 0))
-    df_export["usuario"] = usuario
-    df_export["fecha"] = date.today().isoformat()
     return df_export.to_csv(index=False)
 
 
-def load_ingredients_csv(uploaded_file):
+def load_ingredients_csv(uploaded_file, ingredientes_df_macro):
     """
-    Carga CSV de ingredientes y extrae:
-    - Lista de ingredientes
-    - Límites (min/max inclusión)
-    - DataFrame completo
-    Retorna: (ing_list, min_limits, max_limits, df_loaded, errores)
+    Carga CSV de ingredientes y encuentra coincidencias en matriz macro.
+    Retorna: (ing_list_encontrados, df_filtrado, errores)
     """
     errors = []
+
     try:
         df_loaded = pd.read_csv(uploaded_file)
-        required_cols = ["Ingrediente"]
-        if not all(col in df_loaded.columns for col in required_cols):
-            errors.append(f"❌ El archivo debe tener columna: {', '.join(required_cols)}")
-            return None, None, None, None, errors
-        ing_list = df_loaded["Ingrediente"].tolist()
-        min_limits = {}
-        max_limits = {}
-        if "min_inclusión" in df_loaded.columns:
-            for _, row in df_loaded.iterrows():
-                ing = row["Ingrediente"]
-                min_limits[ing] = safe_float(row.get("min_inclusión", 0), 0)
-        if "max_inclusión" in df_loaded.columns:
-            for _, row in df_loaded.iterrows():
-                ing = row["Ingrediente"]
-                max_limits[ing] = safe_float(row.get("max_inclusión", 0), 0)
-        return ing_list, min_limits, max_limits, df_loaded, errors
+
+        # Validar columna mínima
+        if "Ingrediente" not in df_loaded.columns:
+            errors.append("❌ El archivo debe tener columna: Ingrediente")
+            return None, None, errors
+
+        ing_cargados = df_loaded["Ingrediente"].tolist()
+
+        # Matchear con matriz macro
+        ing_encontrados = []
+        ing_no_encontrados = []
+
+        for ing in ing_cargados:
+            if ing in ingredientes_df_macro["Ingrediente"].values:
+                ing_encontrados.append(ing)
+            else:
+                ing_no_encontrados.append(ing)
+
+        if ing_no_encontrados:
+            errors.append(f"⚠️ Ingredientes no encontrados en matriz macro: {', '.join(ing_no_encontrados)}")
+
+        # Retornar ingredientes encontrados desde macro
+        df_filtrado = ingredientes_df_macro[
+            ingredientes_df_macro["Ingrediente"].isin(ing_encontrados)
+        ].copy()
+
+        return ing_encontrados, df_filtrado, errors
+
     except Exception as e:
-        return None, None, None, None, [f"❌ Error cargando CSV: {str(e)}"]
+        return None, None, [f"❌ Error cargando CSV: {str(e)}"]
+
+
+def create_project_zip_export(ingredientes_df, nutrientes_data, especie, etapa, usuario):
+    """
+    Crea ZIP con ingredientes + requerimientos para guardar proyecto.
+    """
+    zip_buffer = BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # 1. Guardar ingredientes
+        ing_csv = ingredientes_df.to_csv(index=False)
+        zip_file.writestr("ingredients.csv", ing_csv)
+
+        # 2. Guardar requerimientos
+        req_list = []
+        for nutriente, vals in nutrientes_data.items():
+            req_list.append({
+                "nutriente": nutriente,
+                "min_value": vals.get("min", 0),
+                "max_value": vals.get("max", 0)
+            })
+        req_df = pd.DataFrame(req_list)
+        req_csv = req_df.to_csv(index=False)
+        zip_file.writestr("requirements.csv", req_csv)
+
+        # 3. Guardar metadatos
+        metadata = {
+            "especie": especie,
+            "etapa": etapa,
+            "usuario": usuario,
+            "fecha": date.today().isoformat(),
+            "version": "1.0"
+        }
+        metadata_json = json.dumps(metadata, indent=2)
+        zip_file.writestr("project_metadata.json", metadata_json)
+
+    zip_buffer.seek(0)
+    return zip_buffer
 
 
 # ======================== BLOQUE 5: TITULO Y TABS PRINCIPALES ========================
@@ -396,72 +439,23 @@ with tabs[0]:
 
     if ingredientes_df is not None and not ingredientes_df.empty:
 
-        # ---- 6.1.2 GESTIÓN DE MATRIZ DE INGREDIENTES (Descargar/Cargar) ----
-        st.subheader("📁 Gestión de Matriz de Ingredientes")
-
-        col_desc, col_carg, col_info = st.columns([2, 2, 1.5])
-
-        with col_desc:
-            # Construir CSV con estado actual (ingredientes + límites de session_state)
-            _cur_min = {ing: st.session_state.get(f"min_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
-            _cur_max = {ing: st.session_state.get(f"ingrediente_max_{ing}", 0) for ing in ingredientes_df["Ingrediente"]}
-            csv_descarga = create_ingredients_csv(
-                ingredientes_df,
-                _cur_min,
-                _cur_max,
-                st.session_state.get("usuario", "usuario")
-            )
-            st.download_button(
-                label="⬇️ Descargar matriz actual (CSV)",
-                data=csv_descarga,
-                file_name=f"matriz_ingredientes_{date.today().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                key="btn_download_matriz",
-                help="Descarga los ingredientes actuales con ediciones y límites"
-            )
-
-        with col_carg:
-            uploaded_ing_file = st.file_uploader(
-                "⬆️ Cargar matriz guardada (CSV)",
-                type=["csv"],
-                key="uploader_matriz_ingredientes",
-                help="Carga una matriz de ingredientes previamente descargada"
-            )
-
-        with col_info:
-            st.info("ℹ️ Cargar restaura ingredientes y límites")
-
-        # Procesar archivo cargado
-        if uploaded_ing_file is not None:
-            ingredientes_disp_tmp = ingredientes_df["Ingrediente"].tolist()
-            ing_list_loaded, min_lim_loaded, max_lim_loaded, df_loaded, errors_load = load_ingredients_csv(uploaded_ing_file)
-            if errors_load:
-                for error in errors_load:
-                    st.error(error)
-            else:
-                # Filtrar a los que existen en la matriz macro actual
-                ing_validos = [i for i in ing_list_loaded if i in ingredientes_disp_tmp]
-                # Pre-popular la selección (multiselect se renderiza después, por lo que este set es válido)
-                st.session_state["ingredientes_sel"] = ing_validos
-                st.session_state["min_limits_precargados"] = min_lim_loaded
-                st.session_state["max_limits_precargados"] = max_lim_loaded
-                st.session_state["_aplicar_limites_precargados"] = True
-                st.success(f"✅ Matriz cargada: {len(ing_validos)} ingredientes encontrados en la matriz macro")
-                if len(ing_validos) < len(ing_list_loaded):
-                    faltantes = [i for i in ing_list_loaded if i not in ingredientes_disp_tmp]
-                    st.warning(f"⚠️ {len(faltantes)} ingredientes no encontrados en la matriz macro: {', '.join(faltantes[:5])}{'...' if len(faltantes) > 5 else ''}")
-                st.info("Ahora puedes editar o agregar más ingredientes abajo")
-
         st.subheader("Selecciona ingredientes para formular")
         ingredientes_disp = ingredientes_df["Ingrediente"].tolist()
+
+        # Usar precargados si existen
+        default_ing_sel = st.session_state.get("ingredientes_precargados", [])
 
         ingredientes_sel = st.multiselect(
             "Buscar y selecciona ingredientes",
             ingredientes_disp,
-            default=[],
+            default=default_ing_sel,
             help="Elige solo los ingredientes que deseas usar en la dieta.",
             key="ingredientes_sel"
         )
+
+        # Limpiar precargados después de usar
+        if default_ing_sel:
+            st.session_state["ingredientes_precargados"] = []
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
         clean_state(["min_", "max_"], ingredientes_sel)
@@ -565,6 +559,43 @@ with tabs[0]:
                     key=key_editor
                 )
             ingredientes_df_filtrado = df_edit.copy()
+
+            # ---- 6.3.1 GESTIÓN DE MATRIZ DE INGREDIENTES SELECCIONADOS ----
+            with st.expander("📥 Descargar/Cargar matriz de ingredientes seleccionados", expanded=False):
+                col_desc, col_carg = st.columns([1, 1])
+
+                with col_desc:
+                    csv_content = create_ingredients_csv(ingredientes_df_filtrado)
+                    st.download_button(
+                        label="⬇️ Descargar matriz actual (CSV)",
+                        data=csv_content,
+                        file_name=f"matriz_ingredientes_{date.today().strftime('%Y%m%d')}.csv",
+                        mime="text/csv",
+                        key="btn_download_matriz_actual"
+                    )
+
+                with col_carg:
+                    uploaded_ing_file = st.file_uploader(
+                        "⬆️ Cargar matriz guardada (CSV)",
+                        type=["csv"],
+                        key="uploader_matriz_ingredientes",
+                        help="Carga una matriz de ingredientes descargada anteriormente"
+                    )
+
+                # Procesar archivo cargado
+                if uploaded_ing_file is not None:
+                    ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_ing_file, ingredientes_df)
+
+                    if errors_load:
+                        for error in errors_load:
+                            st.warning(error)
+
+                    if df_cargado is not None and not df_cargado.empty:
+                        # Pre-rellenar ingredientes seleccionados
+                        st.session_state["ingredientes_sel"] = ing_encontrados
+                        st.session_state["ingredientes_precargados"] = ing_encontrados
+                        st.success(f"✅ Matriz cargada: {len(ing_encontrados)} ingredientes encontrados")
+                        st.rerun()
         else:
             ingredientes_df_filtrado = pd.DataFrame()
 
@@ -975,189 +1006,47 @@ with tabs[0]:
         elif not ingredientes_df.empty:
             st.session_state["ingredients_df"] = ingredientes_df.copy()
 
-        # ======================== BLOQUE 6.10: GUARDAR/CARGAR PROYECTOS COMPLETOS ========================
+        # ======================== BLOQUE 6.10: GUARDAR PROYECTO (SOLO ZIP) ========================
 
-        def create_project_zip(ingredientes_df_p, nutrientes_data_p, min_limits_p, max_limits_p, ratios_p, especie_p, etapa_p, usuario_p):
-            """
-            Crea un ZIP con todos los datos del proyecto.
-            Estructura:
-            - ingredients.csv: Ingredientes usados (con ediciones)
-            - requirements.csv: Requerimientos nutricionales
-            - project_metadata.json: Metadatos (especie, etapa, usuario, fecha, límites, ratios)
-            """
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                # 1. Guardar ingredientes
-                ingredients_csv = ingredientes_df_p.to_csv(index=False)
-                zip_file.writestr("ingredients.csv", ingredients_csv)
-
-                # 2. Guardar requerimientos
-                req_list = []
-                for nutriente, vals in nutrientes_data_p.items():
-                    req_list.append({
-                        "nutriente": nutriente,
-                        "min_value": vals.get("min", 0),
-                        "max_value": vals.get("max", 0)
-                    })
-                req_df = pd.DataFrame(req_list)
-                req_csv = req_df.to_csv(index=False)
-                zip_file.writestr("requirements.csv", req_csv)
-
-                # 3. Guardar metadatos (límites, ratios, etc)
-                metadata = {
-                    "especie": especie_p,
-                    "etapa": etapa_p,
-                    "usuario": usuario_p,
-                    "fecha": date.today().isoformat(),
-                    "ingredient_limits": {
-                        ing: {"min": min_limits_p.get(ing, 0), "max": max_limits_p.get(ing, 0)}
-                        for ing in min_limits_p.keys()
-                    },
-                    "ratios": ratios_p,
-                    "version": "1.0"
-                }
-                metadata_json = json.dumps(metadata, indent=2)
-                zip_file.writestr("project_metadata.json", metadata_json)
-
-            zip_buffer.seek(0)
-            return zip_buffer
-
-        def load_project_zip(uploaded_file, ingredientes_df_macro):
-            """
-            Carga un proyecto desde ZIP y lo mapea con la matriz macro.
-            Retorna: (ingredientes_filtrados, nutrientes_data, min_limits, max_limits, ratios, especie, etapa, errores)
-            """
-            errors = []
-            try:
-                with zipfile.ZipFile(uploaded_file, 'r') as zip_file:
-                    # Leer metadata
-                    metadata_json = zip_file.read("project_metadata.json").decode('utf-8')
-                    metadata = json.loads(metadata_json)
-                    especie_l = metadata.get("especie", "")
-                    etapa_l = metadata.get("etapa", "")
-                    ratios_l = metadata.get("ratios", [])
-                    ingredient_limits_data = metadata.get("ingredient_limits", {})
-
-                    # Leer requerimientos
-                    req_csv = zip_file.read("requirements.csv").decode('utf-8')
-                    req_df = pd.read_csv(io.StringIO(req_csv))
-                    nutrientes_data_l = {}
-                    for _, row in req_df.iterrows():
-                        nutrientes_data_l[row["nutriente"]] = {
-                            "min": safe_float(row["min_value"], 0),
-                            "max": safe_float(row.get("max_value", 0), 0)
-                        }
-
-                    # Leer ingredientes y mapear con matriz macro
-                    ing_csv = zip_file.read("ingredients.csv").decode('utf-8')
-                    ing_proyecto = pd.read_csv(io.StringIO(ing_csv))
-
-                    # Matchear con matriz macro: usar nombres de ingredientes del proyecto
-                    ing_names_proyecto = ing_proyecto["Ingrediente"].tolist()
-                    ing_matcheados = ingredientes_df_macro[
-                        ingredientes_df_macro["Ingrediente"].isin(ing_names_proyecto)
-                    ].copy()
-
-                    # Identificar ingredientes no encontrados
-                    ing_no_encontrados = [i for i in ing_names_proyecto if i not in ingredientes_df_macro["Ingrediente"].values]
-                    if ing_no_encontrados:
-                        errors.append(f"⚠️ Ingredientes no encontrados en matriz macro: {', '.join(ing_no_encontrados)}")
-
-                    # Reconstruir límites
-                    min_limits_l = {}
-                    max_limits_l = {}
-                    for ing, limits in ingredient_limits_data.items():
-                        if ing in ing_matcheados["Ingrediente"].values:
-                            min_limits_l[ing] = limits.get("min", 0)
-                            max_limits_l[ing] = limits.get("max", 0)
-
-                    return ing_matcheados, nutrientes_data_l, min_limits_l, max_limits_l, ratios_l, especie_l, etapa_l, errors
-
-            except Exception as e:
-                return None, None, None, None, None, None, None, [f"❌ Error cargando proyecto: {str(e)}"]
-
-        # ---- BLOQUE 6.10.1: UI PARA GUARDAR/CARGAR PROYECTOS ----
+        # ---- 6.10 GESTIÓN DE PROYECTOS (GUARDAR SOLO) ----
         st.markdown("---")
-        st.subheader("📁 Gestión de Proyectos")
+        st.subheader("💾 Guardar Proyecto Completo")
+        st.write("Descarga tu proyecto con ingredientes + requerimientos en un ZIP")
 
-        col_guardar, col_cargar = st.columns(2)
+        if ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and nutrientes_seleccionados and nutrientes_data:
+            col_nombre, col_guardar = st.columns([2, 1])
 
-        with col_guardar:
-            if ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and nutrientes_seleccionados:
+            with col_nombre:
                 nombre_proyecto = st.text_input(
-                    "Nombre del proyecto para guardar",
+                    "Nombre del proyecto",
                     value=f"{especie}_{etapa}_{date.today().strftime('%Y%m%d')}",
-                    key="nombre_proyecto_input",
-                    help="Se guardará como ZIP con todos los datos"
+                    key="nombre_proyecto_guardar",
+                    help="Este será el nombre del archivo ZIP"
                 )
 
-                if st.button("💾 Guardar proyecto completo", key="btn_guardar_proyecto"):
+            with col_guardar:
+                if st.button("⬇️ Descargar ZIP", key="btn_guardar_proyecto_zip"):
                     try:
-                        zip_buffer = create_project_zip(
+                        zip_buffer = create_project_zip_export(
                             ingredientes_df_filtrado,
                             nutrientes_data,
-                            min_limits,
-                            max_limits,
-                            st.session_state.get("ratios", []),
                             especie,
                             etapa,
                             st.session_state.get("usuario", "usuario")
                         )
+
                         st.download_button(
-                            label="⬇️ Descargar ZIP del proyecto",
+                            label="📦 Descargar Proyecto ZIP",
                             data=zip_buffer,
                             file_name=f"{nombre_proyecto}.zip",
                             mime="application/zip",
-                            key="btn_download_proyecto"
+                            key="btn_download_proyecto_zip"
                         )
-                        st.success(f"✅ Proyecto '{nombre_proyecto}' listo para descargar")
+                        st.success("✅ Proyecto listo para descargar")
                     except Exception as e:
                         st.error(f"❌ Error guardando proyecto: {str(e)}")
-            else:
-                st.info("Configura ingredientes y requerimientos para guardar proyecto")
-
-        with col_cargar:
-            uploaded_project = st.file_uploader(
-                "⬆️ Cargar proyecto (.zip)",
-                type=["zip"],
-                key="uploader_proyecto"
-            )
-
-            if uploaded_project is not None:
-                try:
-                    ing_loaded, nut_loaded, min_lim, max_lim, rat_loaded, esp_loaded, eta_loaded, load_errors = load_project_zip(
-                        uploaded_project,
-                        ingredientes_df
-                    )
-
-                    if load_errors:
-                        for error in load_errors:
-                            st.warning(error)
-
-                    if ing_loaded is not None:
-                        # Guardar en session_state para que se cargue automáticamente
-                        st.session_state["ingredientes_sel"] = ing_loaded["Ingrediente"].tolist()
-                        st.session_state["nutrientes_seleccionados"] = list(nut_loaded.keys())
-                        st.session_state["nutrientes_seleccionados_key"] = list(nut_loaded.keys())
-                        st.session_state["req_input"] = nut_loaded
-
-                        # Cargar valores de requerimientos en session_state
-                        for nutriente, vals in nut_loaded.items():
-                            st.session_state[f"nutriente_min_{nutriente}"] = vals.get("min", 0)
-                            st.session_state[f"nutriente_max_{nutriente}"] = vals.get("max", 0)
-
-                        st.session_state["ratios"] = rat_loaded
-
-                        # Guardar límites de ingredientes
-                        for ing, min_v in min_lim.items():
-                            st.session_state[f"ingrediente_min_{ing}"] = min_v
-                            st.session_state[f"ingrediente_max_{ing}"] = max_lim.get(ing, 0)
-
-                        st.success(f"✅ Proyecto cargado: {esp_loaded} - {eta_loaded}")
-                        st.info("Los datos se cargarán al refrescar. Haz clic en Formular para continuar.")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error cargando proyecto: {str(e)}")
+        else:
+            st.info("ℹ️ Configura ingredientes y requerimientos para guardar proyecto")
 
         # ---- 6.9 Formulable y botón ----
         formulable = not ingredientes_df_filtrado.empty and nutrientes_seleccionados
