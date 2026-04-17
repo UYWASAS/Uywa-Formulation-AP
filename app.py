@@ -510,6 +510,7 @@ with tabs[0]:
                 "% Logrado": bar_visual,
                 "Brecha": brecha_text,
                 "Limitante": limitante_text,
+                "Shadow Price": shadow_pct,
                 "Impacto": impacto
             })
 
@@ -528,7 +529,8 @@ with tabs[0]:
                     "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
                     "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=120),
                     "Limitante": st.column_config.TextColumn("Limitante", disabled=True, width=120),
-                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
+                    "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=110),
+                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=110),
                 }
             )
 
