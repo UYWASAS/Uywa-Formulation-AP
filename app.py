@@ -427,7 +427,7 @@ with tabs[0]:
         st.subheader("Requerimientos Nutricionales")
         st.write("Edita Min/Max en la tabla. Las columnas Obtenido, Progreso y Shadow Price se actualizan en vivo.")
 
-        # ---- Calcular preview para mostrar Obtenido en vivo ----
+        # ---- PASO 1: Leer estado actual (puede ser viejo o nuevo) ----
         req_preview = {}
         for nutriente in nutrientes_seleccionados:
             min_val = safe_float(st.session_state.get(f"nutriente_min_{nutriente}", 0), 0)
@@ -435,6 +435,74 @@ with tabs[0]:
             max_val = safe_float(max_raw, 0) if pd.notna(max_raw) else 0
             req_preview[nutriente] = {"min": min_val, "max": max_val}
 
+        # Obtener estado actual de req_input (para después de guardar)
+        nutrientes_data = st.session_state.get("req_input", {})
+        for nutriente in nutrientes_seleccionados:
+            if nutriente not in nutrientes_data:
+                nutrientes_data[nutriente] = {"min": 0, "max": 0}
+
+        # ---- PASO 2: Renderizar formulario (SIN calcular preview aún) ----
+        with st.form(key="form_nutrientes_unificada"):
+            temp_table_data = []
+            for nutriente in nutrientes_seleccionados:
+                min_val = req_preview.get(nutriente, {}).get("min", 0)
+                max_val = req_preview.get(nutriente, {}).get("max", 0)
+
+                temp_table_data.append({
+                    "Nutriente": nutriente,
+                    "Min": min_val,
+                    "Max": max_val if max_val > 0 else None,
+                    "Obtenido": 0,
+                    "% Logrado": "—",
+                    "Brecha": "—",
+                    "Impacto": "—"
+                })
+
+            df_nutrients_unified = st.data_editor(
+                pd.DataFrame(temp_table_data),
+                use_container_width=True,
+                hide_index=True,
+                key="nutrientes_editor_unified",
+                column_config={
+                    "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=130),
+                    "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=90),
+                    "Max": st.column_config.NumberColumn("Max (opt)", min_value=0.0, format="%.2f", width=100),
+                    "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=110),
+                    "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
+                    "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=120),
+                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
+                }
+            )
+
+            btn_guardar = st.form_submit_button(
+                "💾 Guardar cambios en requerimientos",
+                type="primary"
+            )
+
+        # ---- PASO 3: Guardar cambios en session_state (ANTES del cálculo de preview) ----
+        if btn_guardar:
+            nutrientes_data = {}
+            for _, row in df_nutrients_unified.iterrows():
+                nut = row["Nutriente"]
+                min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
+                max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
+
+                st.session_state[f"nutriente_min_{nut}"] = min_v
+                st.session_state[f"nutriente_max_{nut}"] = max_v
+                st.session_state[f"min_{nut}"] = min_v
+                st.session_state[f"max_{nut}"] = max_v
+                nutrientes_data[nut] = {"min": min_v, "max": max_v}
+
+            req_input = nutrientes_data
+            st.session_state["req_input"] = req_input
+            st.success("✅ Cambios guardados exitosamente")
+
+            # AHORA actualizar req_preview CON LOS NUEVOS VALORES
+            req_preview = nutrientes_data.copy()
+        else:
+            req_input = nutrientes_data
+
+        # ---- PASO 4: Calcular preview con datos actualizados (después de guardar) ----
         preview_result_table = {"success": False}
         if (ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and
             nutrientes_seleccionados and len(nutrientes_seleccionados) > 0):
@@ -448,24 +516,9 @@ with tabs[0]:
                     ratios=st.session_state.get("ratios", [])
                 )
                 preview_result_table = preview_formulator_table.solve()
+                preview_nutrition_table = preview_result_table.get("nutritional_values", {}) if preview_result_table.get("success") else {}
             except Exception:
                 preview_result_table = {"success": False}
-
-        # Recalcular preview en vivo SIEMPRE (incluso si formulación falló)
-        if (ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and
-            nutrientes_seleccionados and len(nutrientes_seleccionados) > 0):
-            try:
-                preview_formulator = DietFormulator(
-                    ingredientes_df_filtrado,
-                    nutrientes_seleccionados,
-                    req_preview,
-                    min_limits,
-                    max_limits,
-                    ratios=st.session_state.get("ratios", [])
-                )
-                preview_result_live = preview_formulator.solve()
-                preview_nutrition_table = preview_result_live.get("nutritional_values", {}) if preview_result_live.get("success") else {}
-            except Exception:
                 preview_nutrition_table = {}
         else:
             preview_nutrition_table = {}
@@ -473,7 +526,7 @@ with tabs[0]:
         shadow_prices_preview = preview_result_table.get("shadow_prices", {}) if preview_result_table.get("success") else {}
         preview_cost_table = preview_result_table.get("cost", 0) if preview_result_table.get("success") else 0
 
-        # ---- Construir tabla unificada ----
+        # ---- PASO 5: Construir tabla actualizada con datos frescos ----
         nutrientes_table_data = []
         for nutriente in nutrientes_seleccionados:
             min_val = req_preview.get(nutriente, {}).get("min", 0)
@@ -504,52 +557,23 @@ with tabs[0]:
                 "Impacto": impacto
             })
 
-        # ---- FORMA UNIFICADA: Tabla + Botón Guardar ----
-        with st.form(key="form_nutrientes_unificada"):
-            df_nutrients_unified = st.data_editor(
-                pd.DataFrame(nutrientes_table_data),
-                use_container_width=True,
-                hide_index=True,
-                key="nutrientes_editor_unified",
-                column_config={
-                    "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=130),
-                    "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=90),
-                    "Max": st.column_config.NumberColumn("Max (opt)", min_value=0.0, format="%.2f", width=100),
-                    "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=110),
-                    "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
-                    "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=120),
-                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
-                }
-            )
-
-            btn_guardar = st.form_submit_button(
-                "💾 Guardar cambios en requerimientos",
-                type="primary"
-            )
-
-        # ---- Guardar cambios SOLO cuando presiona botón ----
-        if btn_guardar:
-            nutrientes_data = {}
-            for _, row in df_nutrients_unified.iterrows():
-                nut = row["Nutriente"]
-                min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
-                max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
-
-                st.session_state[f"nutriente_min_{nut}"] = min_v
-                st.session_state[f"nutriente_max_{nut}"] = max_v
-                st.session_state[f"min_{nut}"] = min_v
-                st.session_state[f"max_{nut}"] = max_v
-                nutrientes_data[nut] = {"min": min_v, "max": max_v}
-
-            req_input = nutrientes_data
-            st.session_state["req_input"] = req_input
-            st.success("✅ Cambios guardados exitosamente")
-        else:
-            nutrientes_data = st.session_state.get("req_input", {})
-            for nutriente in nutrientes_seleccionados:
-                if nutriente not in nutrientes_data:
-                    nutrientes_data[nutriente] = {"min": 0, "max": 0}
-            req_input = nutrientes_data
+        # ---- PASO 6: Mostrar tabla actualizada (vista en vivo) ----
+        st.subheader("Vista en vivo (se actualiza después de guardar)")
+        df_display = pd.DataFrame(nutrientes_table_data)
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=130),
+                "Min": st.column_config.NumberColumn("Min", format="%.2f", width=90),
+                "Max": st.column_config.NumberColumn("Max (opt)", format="%.2f", width=100),
+                "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=110),
+                "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=100),
+                "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=120),
+                "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=90),
+            }
+        )
 
         # ---- 6.6.1 DESCARGA DE REQUERIMIENTOS (CSV) ----
         if nutrientes_seleccionados and etapa and etapa != "Otra" and nutrientes_data:
