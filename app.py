@@ -600,12 +600,9 @@ with tabs[0]:
                 "Min": min_val,
                 "Obtenido": obtenido,
                 "% Logrado": bar_visual,
-                "Brecha": f"{brecha:+.2f}" if brecha != 0 else "0.00",
-                "Margen(%)": f"{margin_emoji} {margin_text}".strip(),
                 "Shadow Price": shadow_pct,
                 "Costo Marginal": marginal_cost,
                 "Impacto": impacto_avanzado,
-                "Alerta": alert_status,
                 "Ing Limitante": ing_limitante
             })
 
@@ -621,12 +618,9 @@ with tabs[0]:
                     "Min": st.column_config.NumberColumn("Min", format="%.2f", disabled=True, width=80),
                     "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=100),
                     "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=95),
-                    "Brecha": st.column_config.TextColumn("Brecha", disabled=True, width=85),
-                    "Margen(%)": st.column_config.TextColumn("Margen(%)", disabled=True, width=95),
                     "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=105),
                     "Costo Marginal": st.column_config.TextColumn("Costo Marginal", disabled=True, width=110),
                     "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=95),
-                    "Alerta": st.column_config.TextColumn("Alerta", disabled=True, width=100),
                     "Ing Limitante": st.column_config.TextColumn("Ing Limitante", disabled=True, width=130),
                 }
             )
