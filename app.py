@@ -454,7 +454,7 @@ with tabs[0]:
         )
 
         # Limpiar precargados después de usar UNA SOLA VEZ
-        if default_ing_sel and ingredientes_sel == default_ing_sel:
+        if default_ing_sel and set(ingredientes_sel) == set(default_ing_sel):
             st.session_state["ingredientes_precargados"] = []
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
