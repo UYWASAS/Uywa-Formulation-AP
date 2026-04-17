@@ -453,8 +453,9 @@ with tabs[0]:
             key="ingredientes_sel"
         )
 
-        # Limpiar precargados después de ser usados UNA SOLA VEZ
-        if default_ing_sel:
+        # Limpiar precargados DESPUÉS del render - para que next render no los use
+        # Esto permite que se usen en este render pero no en siguientes
+        if default_ing_sel and ingredientes_sel:  # Solo si fueron efectivamente seleccionados
             st.session_state["ingredientes_precargados"] = []
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
@@ -646,7 +647,7 @@ with tabs[0]:
                     ):
                         # Solo cargar nutrientes SIN valores
                         st.session_state["nutrientes_seleccionados"] = _nutrientes_en_preset
-                        st.session_state["nutrientes_seleccionados_key"] = _nutrientes_en_preset
+                        # NO modificar nutrientes_seleccionados_key (es el key del widget)
 
                         # Forzar limpiar cualquier valor previo (siempre Min/Max = 0)
                         for nutriente in _nutrientes_en_preset:
@@ -706,7 +707,7 @@ with tabs[0]:
 
                     # Guardar nutrientes seleccionados (para que el multiselect los vea)
                     st.session_state["nutrientes_seleccionados"] = nutrientes_cargados
-                    st.session_state["nutrientes_seleccionados_key"] = nutrientes_cargados
+                    # NO modificar nutrientes_seleccionados_key (es el key del widget)
 
                     # Guardar valores de requerimientos
                     req_data = {}
