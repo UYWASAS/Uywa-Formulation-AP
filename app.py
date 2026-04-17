@@ -442,8 +442,8 @@ with tabs[0]:
         st.subheader("Selecciona ingredientes para formular")
         ingredientes_disp = ingredientes_df["Ingrediente"].tolist()
 
-        # Usar precargados si existen
-        default_ing_sel = st.session_state.get("ingredientes_precargados", [])
+        # Usar precargados si existen - filtrar a los que existen en la matriz macro cargada
+        default_ing_sel = [ing for ing in st.session_state.get("ingredientes_precargados", []) if ing in ingredientes_disp]
 
         ingredientes_sel = st.multiselect(
             "Buscar y selecciona ingredientes",
@@ -574,19 +574,29 @@ with tabs[0]:
                     help="Carga una matriz de ingredientes descargada anteriormente"
                 )
 
-            # Procesar archivo cargado - SIN botones que modifiquen session_state
+            # Procesar archivo cargado - AUTO-CARGAR TODOS
             if uploaded_ing_file is not None:
-                ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_ing_file, ingredientes_df)
+                file_id = f"{uploaded_ing_file.name}_{uploaded_ing_file.size}"
 
-                if errors_load:
-                    for error in errors_load:
-                        st.warning(error)
+                if st.session_state.get("_last_ing_file_id") != file_id:
+                    ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_ing_file, ingredientes_df)
 
-                if df_cargado is not None and not df_cargado.empty and ing_encontrados:
-                    # Guardar precargados (SIN rerun, SIN botón conflictivo)
-                    st.session_state["ingredientes_precargados"] = ing_encontrados
-                    st.success(f"✅ Matriz cargada: {len(ing_encontrados)} ingredientes encontrados")
-                    st.info("📋 **Selecciona estos ingredientes en el campo 'Buscar y selecciona ingredientes' de arriba ⬆️**")
+                    if errors_load:
+                        for error in errors_load:
+                            st.warning(error)
+
+                    if df_cargado is not None and not df_cargado.empty and ing_encontrados:
+                        # GUARDAR TODOS los ingredientes encontrados en precargados
+                        st.session_state["ingredientes_precargados"] = ing_encontrados
+                        st.session_state["_last_ing_file_id"] = file_id
+                        st.session_state["_last_ing_count"] = len(ing_encontrados)
+                        st.rerun()
+                else:
+                    n = st.session_state.get("_last_ing_count", 0)
+                    st.success(f"✅ Matriz cargada: {n} ingredientes encontrados")
+                    st.info(f"📋 Los {n} ingredientes se cargarán automáticamente en la selección de abajo")
+            else:
+                st.session_state.pop("_last_ing_file_id", None)
 
         # ---- 6.3.1 EDICIÓN DE INGREDIENTES SELECCIONADOS ----
         if ingredientes_sel:
