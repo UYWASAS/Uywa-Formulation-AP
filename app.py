@@ -449,7 +449,7 @@ with tabs[0]:
             "Buscar y selecciona ingredientes",
             ingredientes_disp,
             default=default_ing_sel,
-            help="Elige solo los ingredientes que deseas usar en la dieta.",
+            help="Elige solo los ingredientes que deseas usar en la dieta. Si cargaste una matriz, aparecerán aquí.",
             key="ingredientes_sel"
         )
 
