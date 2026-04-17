@@ -453,8 +453,8 @@ with tabs[0]:
             key="ingredientes_sel"
         )
 
-        # Limpiar precargados después de usar
-        if default_ing_sel:
+        # Limpiar precargados después de usar UNA SOLA VEZ
+        if default_ing_sel and ingredientes_sel == default_ing_sel:
             st.session_state["ingredientes_precargados"] = []
 
         ingredientes_sel = list(dict.fromkeys(ingredientes_sel))  # Elimina duplicados
@@ -544,9 +544,58 @@ with tabs[0]:
                     st.session_state[f"min_{ing}"] = min_val
                     st.session_state[f"max_{ing}"] = safe_float(max_val, 0)
 
-        # ---- 6.3 Edición de ingredientes seleccionados ----
+        # ---- 6.3 GESTIÓN DE MATRIZ DE INGREDIENTES (DESCARGAR/CARGAR) ----
+        # Este expander está FUERA del if ingredientes_sel, siempre visible
+        with st.expander("📥 Descargar/Cargar matriz de ingredientes", expanded=False):
+            col_desc, col_carg = st.columns([1, 1])
+
+            # DESCARGA: solo visible si hay ingredientes seleccionados
+            with col_desc:
+                if ingredientes_sel:
+                    if st.button("⬇️ Descargar matriz actual (CSV)", key="btn_descargar_matriz_seleccionada"):
+                        df_temp = ingredientes_df[ingredientes_df["Ingrediente"].isin(ingredientes_sel)].copy()
+                        csv_content = create_ingredients_csv(df_temp)
+                        st.download_button(
+                            label="📥 Descargar CSV",
+                            data=csv_content,
+                            file_name=f"matriz_ingredientes_{date.today().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            key="btn_download_matriz_actual"
+                        )
+                else:
+                    st.info("Selecciona ingredientes primero para descargar")
+
+            # CARGA: siempre visible, sin bloqueos
+            with col_carg:
+                uploaded_ing_file = st.file_uploader(
+                    "⬆️ Cargar matriz guardada (CSV)",
+                    type=["csv"],
+                    key="uploader_matriz_ingredientes",
+                    help="Carga una matriz de ingredientes descargada anteriormente"
+                )
+
+            # Procesar archivo cargado - SIN modificar session_state directamente
+            if uploaded_ing_file is not None:
+                ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_ing_file, ingredientes_df)
+
+                if errors_load:
+                    for error in errors_load:
+                        st.warning(error)
+
+                if df_cargado is not None and not df_cargado.empty and ing_encontrados:
+                    # Guardar en session_state FUERA del upload
+                    st.session_state["ingredientes_precargados"] = ing_encontrados
+                    st.success(f"✅ Matriz cargada: {len(ing_encontrados)} ingredientes encontrados")
+                    st.info("📋 Ahora selecciona estos ingredientes en el campo de arriba o haz clic en 'Aplicar precargados'")
+
+                    # Botón para aplicar directamente
+                    if st.button("✅ Aplicar ingredientes precargados", key="btn_aplicar_precargados"):
+                        st.session_state["ingredientes_sel"] = ing_encontrados
+                        st.rerun()
+
+        # ---- 6.3.1 EDICIÓN DE INGREDIENTES SELECCIONADOS ----
         if ingredientes_sel:
-            with st.expander("Ver/editar composición de ingredientes seleccionados"):
+            with st.expander("Ver/editar composición de ingredientes seleccionados", expanded=True):
                 df_edit = ingredientes_df[ingredientes_df["Ingrediente"].isin(ingredientes_sel)].copy()
                 key_editor = "ingredientes_editor_" + "_".join([str(e).replace(" ", "_") for e in ingredientes_sel])
                 # Formatea todas las columnas numéricas a 2 decimales antes de mostrar
@@ -559,43 +608,6 @@ with tabs[0]:
                     key=key_editor
                 )
             ingredientes_df_filtrado = df_edit.copy()
-
-            # ---- 6.3.1 GESTIÓN DE MATRIZ DE INGREDIENTES SELECCIONADOS ----
-            with st.expander("📥 Descargar/Cargar matriz de ingredientes seleccionados", expanded=False):
-                col_desc, col_carg = st.columns([1, 1])
-
-                with col_desc:
-                    csv_content = create_ingredients_csv(ingredientes_df_filtrado)
-                    st.download_button(
-                        label="⬇️ Descargar matriz actual (CSV)",
-                        data=csv_content,
-                        file_name=f"matriz_ingredientes_{date.today().strftime('%Y%m%d')}.csv",
-                        mime="text/csv",
-                        key="btn_download_matriz_actual"
-                    )
-
-                with col_carg:
-                    uploaded_ing_file = st.file_uploader(
-                        "⬆️ Cargar matriz guardada (CSV)",
-                        type=["csv"],
-                        key="uploader_matriz_ingredientes",
-                        help="Carga una matriz de ingredientes descargada anteriormente"
-                    )
-
-                # Procesar archivo cargado
-                if uploaded_ing_file is not None:
-                    ing_encontrados, df_cargado, errors_load = load_ingredients_csv(uploaded_ing_file, ingredientes_df)
-
-                    if errors_load:
-                        for error in errors_load:
-                            st.warning(error)
-
-                    if df_cargado is not None and not df_cargado.empty:
-                        # Pre-rellenar ingredientes seleccionados
-                        st.session_state["ingredientes_sel"] = ing_encontrados
-                        st.session_state["ingredientes_precargados"] = ing_encontrados
-                        st.success(f"✅ Matriz cargada: {len(ing_encontrados)} ingredientes encontrados")
-                        st.rerun()
         else:
             ingredientes_df_filtrado = pd.DataFrame()
 
