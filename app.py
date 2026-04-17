@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import io
+import json
+import zipfile
+from io import BytesIO
 from datetime import date
 from data import load_ingredients, get_nutrient_list, get_preset_requirements
 from optimization import DietFormulator
@@ -718,8 +721,6 @@ with tabs[0]:
                         unsafe_allow_html=True
                     )
 
-            st.markdown("---")
-            col1, col2, col3, col4 = st.columns(4)
 
             cumplidos = 0
             for nut in nutrientes_seleccionados:
@@ -732,16 +733,47 @@ with tabs[0]:
             total_nut = len(nutrientes_seleccionados)
             pct_general = (cumplidos / total_nut) * 100 if total_nut > 0 else 0
 
-            with col1:
-                st.metric("💰 Costo", f"${preview_cost:.2f}", "por 100 kg")
+            # ---- NUEVA SECCIÓN: Cálculo de precios con bag editable ----
+            st.markdown("---")
+            st.subheader("💰 Análisis de Precios")
 
-            with col2:
-                st.metric("✅ Nutrientes OK", f"{cumplidos}/{total_nut}")
+            col_bag, col_precio_kg, col_precio_ton = st.columns(3)
+            with col_bag:
+                peso_bag = st.number_input(
+                    "Peso del bag (kg)",
+                    min_value=5.0,
+                    max_value=100.0,
+                    value=45.0,
+                    step=1.0,
+                    format="%.1f",
+                    key="peso_bag_input",
+                    help="Edita el peso del bag para recalcular automáticamente"
+                )
 
-            with col3:
+            # Cálculos automáticos
+            precio_kg = preview_cost / 100 if preview_cost > 0 else 0
+            precio_ton = precio_kg * 1000
+            precio_bag = precio_kg * peso_bag
+
+            with col_precio_kg:
+                st.metric("Precio por kg", f"${precio_kg:.2f}")
+
+            with col_precio_ton:
+                st.metric("Precio por tonelada", f"${precio_ton:,.2f}")
+
+            # Nueva fila con el bag
+            col_bag_precio, col_cumplimiento, col_nutrientes, col_ings = st.columns(4)
+
+            with col_bag_precio:
+                st.metric(f"Precio por bag ({peso_bag:.0f} kg)", f"${precio_bag:.2f}")
+
+            with col_cumplimiento:
                 st.metric("📈 Cumplimiento", f"{pct_general:.1f}%")
 
-            with col4:
+            with col_nutrientes:
+                st.metric("✅ Nutrientes OK", f"{cumplidos}/{total_nut}")
+
+            with col_ings:
                 st.metric("📊 Ingredientes", f"{len(ing_list_sorted)}")
 
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
@@ -807,6 +839,190 @@ with tabs[0]:
             st.session_state["ingredients_df"] = ingredientes_df_filtrado.copy()
         elif not ingredientes_df.empty:
             st.session_state["ingredients_df"] = ingredientes_df.copy()
+
+        # ======================== BLOQUE 6.10: GUARDAR/CARGAR PROYECTOS COMPLETOS ========================
+
+        def create_project_zip(ingredientes_df_p, nutrientes_data_p, min_limits_p, max_limits_p, ratios_p, especie_p, etapa_p, usuario_p):
+            """
+            Crea un ZIP con todos los datos del proyecto.
+            Estructura:
+            - ingredients.csv: Ingredientes usados (con ediciones)
+            - requirements.csv: Requerimientos nutricionales
+            - project_metadata.json: Metadatos (especie, etapa, usuario, fecha, límites, ratios)
+            """
+            zip_buffer = BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # 1. Guardar ingredientes
+                ingredients_csv = ingredientes_df_p.to_csv(index=False)
+                zip_file.writestr("ingredients.csv", ingredients_csv)
+
+                # 2. Guardar requerimientos
+                req_list = []
+                for nutriente, vals in nutrientes_data_p.items():
+                    req_list.append({
+                        "nutriente": nutriente,
+                        "min_value": vals.get("min", 0),
+                        "max_value": vals.get("max", 0)
+                    })
+                req_df = pd.DataFrame(req_list)
+                req_csv = req_df.to_csv(index=False)
+                zip_file.writestr("requirements.csv", req_csv)
+
+                # 3. Guardar metadatos (límites, ratios, etc)
+                metadata = {
+                    "especie": especie_p,
+                    "etapa": etapa_p,
+                    "usuario": usuario_p,
+                    "fecha": date.today().isoformat(),
+                    "ingredient_limits": {
+                        ing: {"min": min_limits_p.get(ing, 0), "max": max_limits_p.get(ing, 0)}
+                        for ing in min_limits_p.keys()
+                    },
+                    "ratios": ratios_p,
+                    "version": "1.0"
+                }
+                metadata_json = json.dumps(metadata, indent=2)
+                zip_file.writestr("project_metadata.json", metadata_json)
+
+            zip_buffer.seek(0)
+            return zip_buffer
+
+        def load_project_zip(uploaded_file, ingredientes_df_macro):
+            """
+            Carga un proyecto desde ZIP y lo mapea con la matriz macro.
+            Retorna: (ingredientes_filtrados, nutrientes_data, min_limits, max_limits, ratios, especie, etapa, errores)
+            """
+            errors = []
+            try:
+                with zipfile.ZipFile(uploaded_file, 'r') as zip_file:
+                    # Leer metadata
+                    metadata_json = zip_file.read("project_metadata.json").decode('utf-8')
+                    metadata = json.loads(metadata_json)
+                    especie_l = metadata.get("especie", "")
+                    etapa_l = metadata.get("etapa", "")
+                    ratios_l = metadata.get("ratios", [])
+                    ingredient_limits_data = metadata.get("ingredient_limits", {})
+
+                    # Leer requerimientos
+                    req_csv = zip_file.read("requirements.csv").decode('utf-8')
+                    req_df = pd.read_csv(io.StringIO(req_csv))
+                    nutrientes_data_l = {}
+                    for _, row in req_df.iterrows():
+                        nutrientes_data_l[row["nutriente"]] = {
+                            "min": safe_float(row["min_value"], 0),
+                            "max": safe_float(row.get("max_value", 0), 0)
+                        }
+
+                    # Leer ingredientes y mapear con matriz macro
+                    ing_csv = zip_file.read("ingredients.csv").decode('utf-8')
+                    ing_proyecto = pd.read_csv(io.StringIO(ing_csv))
+
+                    # Matchear con matriz macro: usar nombres de ingredientes del proyecto
+                    ing_names_proyecto = ing_proyecto["Ingrediente"].tolist()
+                    ing_matcheados = ingredientes_df_macro[
+                        ingredientes_df_macro["Ingrediente"].isin(ing_names_proyecto)
+                    ].copy()
+
+                    # Identificar ingredientes no encontrados
+                    ing_no_encontrados = [i for i in ing_names_proyecto if i not in ingredientes_df_macro["Ingrediente"].values]
+                    if ing_no_encontrados:
+                        errors.append(f"⚠️ Ingredientes no encontrados en matriz macro: {', '.join(ing_no_encontrados)}")
+
+                    # Reconstruir límites
+                    min_limits_l = {}
+                    max_limits_l = {}
+                    for ing, limits in ingredient_limits_data.items():
+                        if ing in ing_matcheados["Ingrediente"].values:
+                            min_limits_l[ing] = limits.get("min", 0)
+                            max_limits_l[ing] = limits.get("max", 0)
+
+                    return ing_matcheados, nutrientes_data_l, min_limits_l, max_limits_l, ratios_l, especie_l, etapa_l, errors
+
+            except Exception as e:
+                return None, None, None, None, None, None, None, [f"❌ Error cargando proyecto: {str(e)}"]
+
+        # ---- BLOQUE 6.10.1: UI PARA GUARDAR/CARGAR PROYECTOS ----
+        st.markdown("---")
+        st.subheader("📁 Gestión de Proyectos")
+
+        col_guardar, col_cargar = st.columns(2)
+
+        with col_guardar:
+            if ingredientes_df_filtrado is not None and not ingredientes_df_filtrado.empty and nutrientes_seleccionados:
+                nombre_proyecto = st.text_input(
+                    "Nombre del proyecto para guardar",
+                    value=f"{especie}_{etapa}_{date.today().strftime('%Y%m%d')}",
+                    key="nombre_proyecto_input",
+                    help="Se guardará como ZIP con todos los datos"
+                )
+
+                if st.button("💾 Guardar proyecto completo", key="btn_guardar_proyecto"):
+                    try:
+                        zip_buffer = create_project_zip(
+                            ingredientes_df_filtrado,
+                            nutrientes_data,
+                            min_limits,
+                            max_limits,
+                            st.session_state.get("ratios", []),
+                            especie,
+                            etapa,
+                            st.session_state.get("usuario", "usuario")
+                        )
+                        st.download_button(
+                            label="⬇️ Descargar ZIP del proyecto",
+                            data=zip_buffer,
+                            file_name=f"{nombre_proyecto}.zip",
+                            mime="application/zip",
+                            key="btn_download_proyecto"
+                        )
+                        st.success(f"✅ Proyecto '{nombre_proyecto}' listo para descargar")
+                    except Exception as e:
+                        st.error(f"❌ Error guardando proyecto: {str(e)}")
+            else:
+                st.info("Configura ingredientes y requerimientos para guardar proyecto")
+
+        with col_cargar:
+            uploaded_project = st.file_uploader(
+                "⬆️ Cargar proyecto (.zip)",
+                type=["zip"],
+                key="uploader_proyecto"
+            )
+
+            if uploaded_project is not None:
+                try:
+                    ing_loaded, nut_loaded, min_lim, max_lim, rat_loaded, esp_loaded, eta_loaded, load_errors = load_project_zip(
+                        uploaded_project,
+                        ingredientes_df
+                    )
+
+                    if load_errors:
+                        for error in load_errors:
+                            st.warning(error)
+
+                    if ing_loaded is not None:
+                        # Guardar en session_state para que se cargue automáticamente
+                        st.session_state["ingredientes_sel"] = ing_loaded["Ingrediente"].tolist()
+                        st.session_state["nutrientes_seleccionados"] = list(nut_loaded.keys())
+                        st.session_state["nutrientes_seleccionados_key"] = list(nut_loaded.keys())
+                        st.session_state["req_input"] = nut_loaded
+
+                        # Cargar valores de requerimientos en session_state
+                        for nutriente, vals in nut_loaded.items():
+                            st.session_state[f"nutriente_min_{nutriente}"] = vals.get("min", 0)
+                            st.session_state[f"nutriente_max_{nutriente}"] = vals.get("max", 0)
+
+                        st.session_state["ratios"] = rat_loaded
+
+                        # Guardar límites de ingredientes
+                        for ing, min_v in min_lim.items():
+                            st.session_state[f"ingrediente_min_{ing}"] = min_v
+                            st.session_state[f"ingrediente_max_{ing}"] = max_lim.get(ing, 0)
+
+                        st.success(f"✅ Proyecto cargado: {esp_loaded} - {eta_loaded}")
+                        st.info("Los datos se cargarán al refrescar. Haz clic en Formular para continuar.")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error cargando proyecto: {str(e)}")
 
         # ---- 6.9 Formulable y botón ----
         formulable = not ingredientes_df_filtrado.empty and nutrientes_seleccionados
