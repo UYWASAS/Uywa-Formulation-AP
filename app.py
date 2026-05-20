@@ -742,7 +742,9 @@ with tabs[0]:
 
         # ---- 6.6 TABLA UNIFICADA: INPUTS + ANÁLISIS EN VIVO ----
         st.subheader("Requerimientos Nutricionales")
-        st.write("Tabla de análisis nutricional con LP. Todas las columnas son de solo lectura e informativas.")
+        st.write("Tabla de análisis nutricional con LP. Min y Max son editables; las demás columnas son analíticas e informativas.")
+        if st.session_state.pop("_req_save_success", False):
+            st.success("✅ Cambios guardados exitosamente")
 
         # ---- PASO 1: Leer estado actual (puede ser viejo o nuevo) ----
         req_preview = {}
@@ -810,6 +812,7 @@ with tabs[0]:
             nutrientes_table_data.append({
                 "Nutriente": nutriente,
                 "Min": min_val,
+                "Max": max_val if max_val > 0 else None,
                 "Obtenido": obtenido,
                 "% Logrado": bar_visual,
                 "Shadow Price": shadow_pct,
@@ -827,7 +830,8 @@ with tabs[0]:
                 key="nutrientes_editor_unified",
                 column_config={
                     "Nutriente": st.column_config.TextColumn("Nutriente", disabled=True, width=110),
-                    "Min": st.column_config.NumberColumn("Min", format="%.2f", disabled=True, width=80),
+                    "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=80),
+                    "Max": st.column_config.NumberColumn("Max", min_value=0.0, format="%.2f", width=80),
                     "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=100),
                     "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=95),
                     "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=105),
@@ -848,7 +852,7 @@ with tabs[0]:
             for _, row in df_nutrients_unified.iterrows():
                 nut = row["Nutriente"]
                 min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
-                max_v = safe_float(req_preview.get(nut, {}).get("max", 0), 0)
+                max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
 
                 st.session_state[f"nutriente_min_{nut}"] = min_v
                 st.session_state[f"nutriente_max_{nut}"] = max_v
@@ -858,7 +862,8 @@ with tabs[0]:
 
             req_input = nutrientes_data
             st.session_state["req_input"] = req_input
-            st.success("✅ Cambios guardados exitosamente")
+            st.session_state["_req_save_success"] = True
+            st.rerun()
         else:
             req_input = nutrientes_data
 
