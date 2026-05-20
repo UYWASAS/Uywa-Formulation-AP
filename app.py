@@ -131,6 +131,11 @@ def safe_float(val, default=0.0):
     except Exception:
         return default
 
+def normalize_requirement_bound(val):
+    """Normaliza límites nutricionales: solo valores positivos activan restricción."""
+    bound = safe_float(val, 0)
+    return bound if bound > 0 else 0.0
+
 def render_progress_bar(min_val, max_val, obtenido, width=12):
     """
     Genera visualización de progreso con emoji + porcentaje.
@@ -409,8 +414,8 @@ def on_requirements_file_upload(ingredientes_df_macro):
                 for _, row in df_req.iterrows():
                     nutriente = str(row["nutriente"])
                     try:
-                        min_val = safe_float(row["min_value"], 0)
-                        max_val = safe_float(row.get("max_value"), 0) if "max_value" in df_req.columns else 0
+                        min_val = normalize_requirement_bound(row["min_value"])
+                        max_val = normalize_requirement_bound(row.get("max_value")) if "max_value" in df_req.columns else 0
                         st.session_state[f"nutriente_min_{nutriente}"] = min_val
                         st.session_state[f"nutriente_max_{nutriente}"] = max_val
                         st.session_state[f"min_{nutriente}"] = min_val
@@ -749,9 +754,8 @@ with tabs[0]:
         # ---- PASO 1: Leer estado actual (puede ser viejo o nuevo) ----
         req_preview = {}
         for nutriente in nutrientes_seleccionados:
-            min_val = safe_float(st.session_state.get(f"nutriente_min_{nutriente}", 0), 0)
-            max_raw = st.session_state.get(f"nutriente_max_{nutriente}", 0)
-            max_val = safe_float(max_raw, 0) if pd.notna(max_raw) else 0
+            min_val = normalize_requirement_bound(st.session_state.get(f"nutriente_min_{nutriente}", 0))
+            max_val = normalize_requirement_bound(st.session_state.get(f"nutriente_max_{nutriente}", 0))
             req_preview[nutriente] = {"min": min_val, "max": max_val}
 
         # Obtener estado actual de req_input (para después de guardar)
@@ -769,8 +773,7 @@ with tabs[0]:
                     ingredientes_df_filtrado,
                     nutrientes_seleccionados,
                     req_preview,
-                    min_limits,
-                    max_limits,
+                    limits={"min": min_limits, "max": max_limits},
                     ratios=st.session_state.get("ratios", [])
                 )
                 preview_result_table = preview_formulator_table.solve()
@@ -851,8 +854,8 @@ with tabs[0]:
             nutrientes_data = {}
             for _, row in df_nutrients_unified.iterrows():
                 nut = row["Nutriente"]
-                min_v = safe_float(row["Min"], 0) if pd.notna(row["Min"]) else 0
-                max_v = safe_float(row["Max"], 0) if pd.notna(row["Max"]) else 0
+                min_v = normalize_requirement_bound(row["Min"]) if pd.notna(row["Min"]) else 0
+                max_v = normalize_requirement_bound(row["Max"]) if pd.notna(row["Max"]) else 0
 
                 st.session_state[f"nutriente_min_{nut}"] = min_v
                 st.session_state[f"nutriente_max_{nut}"] = max_v
@@ -873,10 +876,11 @@ with tabs[0]:
             etapa_slug = etapa.lower().replace(" ", "_").replace("ó", "o").replace("é", "e").replace("í", "i")
             fecha_hoy = date.today().strftime("%Y%m%d")
             csv_buffer = io.StringIO()
-            csv_buffer.write("especie,etapa,nutriente,min_value\n")
+            csv_buffer.write("especie,etapa,nutriente,min_value,max_value\n")
             for nutriente, vals in nutrientes_data.items():
                 min_v = vals.get("min", 0) or 0
-                csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v}\n")
+                max_v = vals.get("max", 0) or 0
+                csv_buffer.write(f"{especie_slug},{etapa_slug},{nutriente},{min_v},{max_v}\n")
             csv_content = csv_buffer.getvalue()
             st.download_button(
                 label="⬇️ Descargar requerimientos editados (CSV)",
@@ -1115,8 +1119,7 @@ with tabs[0]:
                     ingredientes_df_filtrado,
                     nutrientes_seleccionados,
                     req_input,
-                    min_limits,
-                    max_limits,
+                    limits={"min": min_limits, "max": max_limits},
                     ratios=st.session_state.get("ratios", [])
                 )
                 result = formulator.solve()
