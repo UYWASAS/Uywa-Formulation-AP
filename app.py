@@ -1055,6 +1055,48 @@ with tabs[0]:
             with col_ings:
                 st.metric("📊 Ingredientes", f"{len(ing_list_sorted)}")
 
+            # ---- Cumplimiento de Ratios en Preview ----
+            if active_ratios:
+                st.markdown("---")
+                st.subheader("📐 Cumplimiento de Ratios (Preview)")
+                ratio_preview_rows = []
+                for ratio in active_ratios:
+                    num = ratio.get("numerador")
+                    den = ratio.get("denominador")
+                    op = ratio.get("operador")
+                    val = ratio.get("valor")
+                    num_val = preview_nutrition_table.get(num)
+                    den_val = preview_nutrition_table.get(den)
+                    calculado = None
+                    detalle = ""
+                    if den_val is not None and den_val != 0:
+                        calculado = num_val / den_val
+                        calc_str = f"{num_val:.2f} / {den_val:.2f} = {calculado:.2f}"
+                        if op == "=":
+                            cumple = abs(calculado - val) < 1e-2
+                        elif op == ">=":
+                            cumple = calculado >= val - 1e-2
+                        elif op == "<=":
+                            cumple = calculado <= val + 1e-2
+                        else:
+                            cumple = None
+                        detalle = f"Calculado: {calc_str}"
+                    elif den_val == 0:
+                        cumple = False
+                        detalle = f"División por cero (denominador '{den}' = 0)"
+                    else:
+                        cumple = None
+                        detalle = f"Nutriente '{den}' no disponible"
+                    estado = "✅ Cumple" if cumple else ("❌ No cumple" if cumple is False else "⚠️ No evaluable")
+                    ratio_preview_rows.append({
+                        "Ratio": f"{num} / {den}",
+                        "Restricción": f"{op} {val}",
+                        "Valor calculado": f"{calculado:.4f}" if calculado is not None else "N/A",
+                        "Estado": estado,
+                        "Detalle": detalle,
+                    })
+                st.dataframe(pd.DataFrame(ratio_preview_rows), use_container_width=True, hide_index=True)
+
         # ---- 6.7 SUBAPARTADO DE RATIOS ENTRE NUTRIENTES ----
         st.subheader("Restricciones adicionales: Ratios entre nutrientes")
         if "ratios" not in st.session_state:
