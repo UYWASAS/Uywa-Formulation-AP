@@ -765,6 +765,35 @@ with tabs[0]:
             max_val = normalize_requirement_bound(st.session_state.get(f"nutriente_max_{nutriente}", 0))
             req_preview[nutriente] = {"min": min_val, "max": max_val}
 
+        # Mantener ratios consistentes con los nutrientes actualmente seleccionados
+        operadores_ratio_validos = {">=", "<=", "="}
+        ratios_limpios = []
+        for ratio in st.session_state.get("ratios", []):
+            num = ratio.get("numerador")
+            den = ratio.get("denominador")
+            op = ratio.get("operador")
+            try:
+                val = float(ratio.get("valor", 0))
+            except Exception:
+                continue
+            if (
+                num in nutrientes_seleccionados
+                and den in nutrientes_seleccionados
+                and num != den
+                and op in operadores_ratio_validos
+            ):
+                ratios_limpios.append(
+                    {
+                        "numerador": num,
+                        "denominador": den,
+                        "operador": op,
+                        "valor": val,
+                    }
+                )
+        if ratios_limpios != st.session_state.get("ratios", []):
+            st.session_state["ratios"] = ratios_limpios
+        active_ratios = st.session_state.get("ratios", [])
+
         # Obtener estado actual de req_input (para después de guardar)
         nutrientes_data = st.session_state.get("req_input", {})
         for nutriente in nutrientes_seleccionados:
@@ -781,7 +810,7 @@ with tabs[0]:
                     nutrientes_seleccionados,
                     req_preview,
                     limits={"min": min_limits, "max": max_limits},
-                    ratios=st.session_state.get("ratios", [])
+                    ratios=active_ratios
                 )
                 preview_result_table = preview_formulator_table.solve()
                 preview_nutrition_table = preview_result_table.get("nutritional_values", {}) if preview_result_table.get("success") else {}
@@ -1036,34 +1065,33 @@ with tabs[0]:
             "=": "Igual a",
             "<=": "Menor o igual que",
             ">=": "Mayor o igual que",
-            "<": "Menor que",
-            ">": "Mayor que"
         }
 
-        with st.expander("Agregar restricción de ratio entre nutrientes", expanded=False):
-            cols_ratio = st.columns([2, 2, 1, 2, 1])
-            with cols_ratio[0]:
-                nutr_a = st.selectbox("Nutriente numerador", nutrientes_seleccionados, key="ratio_nutr_a")
-            with cols_ratio[1]:
-                nutr_b = st.selectbox("Nutriente denominador", nutrientes_seleccionados, key="ratio_nutr_b")
-            with cols_ratio[2]:
-                operador = st.selectbox("Operador", list(operadores.keys()), format_func=lambda x: operadores[x], key="ratio_operador")
-            with cols_ratio[3]:
-                valor = st.number_input("Valor del ratio", min_value=0.0, max_value=1000.0, value=1.0, step=0.01, key="ratio_valor")
-            with cols_ratio[4]:
-                agregar = st.button("Agregar ratio", key="btn_agregar_ratio")
+        if len(nutrientes_seleccionados) < 2:
+            st.info("Selecciona al menos 2 nutrientes para definir restricciones de ratio.")
+        else:
+            with st.expander("Agregar restricción de ratio entre nutrientes", expanded=False):
+                cols_ratio = st.columns([2, 2, 1, 2, 1])
+                with cols_ratio[0]:
+                    nutr_a = st.selectbox("Nutriente numerador", nutrientes_seleccionados, key="ratio_nutr_a")
+                opciones_den = [n for n in nutrientes_seleccionados if n != nutr_a]
+                with cols_ratio[1]:
+                    nutr_b = st.selectbox("Nutriente denominador", opciones_den, key="ratio_nutr_b")
+                with cols_ratio[2]:
+                    operador = st.selectbox("Operador", list(operadores.keys()), format_func=lambda x: operadores[x], key="ratio_operador")
+                with cols_ratio[3]:
+                    valor = st.number_input("Valor del ratio", min_value=0.0, max_value=1000.0, value=1.0, step=0.01, key="ratio_valor")
+                with cols_ratio[4]:
+                    agregar = st.button("Agregar ratio", key="btn_agregar_ratio")
 
-            if agregar:
-                if nutr_a != nutr_b:
+                if agregar:
                     nueva_restriccion = {
                         "numerador": nutr_a,
                         "denominador": nutr_b,
                         "operador": operador,
-                        "valor": valor
+                        "valor": float(valor)
                     }
                     st.session_state["ratios"].append(nueva_restriccion)
-                else:
-                    st.warning("El numerador y denominador deben ser diferentes.")
 
         # Mostrar ratios agregados con opción de borrado individual
         if st.session_state["ratios"]:
@@ -1152,7 +1180,7 @@ with tabs[0]:
                     nutrientes_seleccionados,
                     req_input,
                     limits={"min": min_limits, "max": max_limits},
-                    ratios=st.session_state.get("ratios", [])
+                    ratios=active_ratios
                 )
                 result = formulator.solve()
                 if result["success"]:
@@ -1272,10 +1300,6 @@ with tabs[1]:
                         cumple = calculado >= val - 1e-2
                     elif op == "<=":
                         cumple = calculado <= val + 1e-2
-                    elif op == ">":
-                        cumple = calculado > val
-                    elif op == "<":
-                        cumple = calculado < val
                     detalle = f"Calculado: {calc_str}"
                 else:
                     cumple = False
