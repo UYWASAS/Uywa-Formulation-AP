@@ -30,6 +30,14 @@ class DietFormulator:
         self.limits.setdefault("max", {})
         self.ratios = ratios or []
 
+    @staticmethod
+    def _normalize_bound(value):
+        try:
+            bound = float(value)
+        except Exception:
+            return 0.0
+        return bound if bound > 0 else 0.0
+
     def run(self):
         prob = pulp.LpProblem("Diet_Formulation", pulp.LpMinimize)
         ingredient_vars = pulp.LpVariable.dicts(
@@ -52,22 +60,14 @@ class DietFormulator:
         # Restricciones nutricionales según requirements (solo si min o max distinto de 0)
         for nutrient in self.nutrient_list:
             req = self.requirements.get(nutrient, {})
-            min_val = req.get("min", 0)
-            max_val = req.get("max", 0)
-            try:
-                min_val = float(min_val)
-            except Exception:
-                min_val = 0
-            try:
-                max_val = float(max_val)
-            except Exception:
-                max_val = 0
+            min_val = self._normalize_bound(req.get("min", 0))
+            max_val = self._normalize_bound(req.get("max", 0))
 
-            if min_val != 0:
+            if min_val > 0:
                 prob += pulp.lpSum(
                     [self.ingredients_df.loc[i, nutrient] * ingredient_vars[i] for i in self.ingredients_df.index]
                 ) >= min_val, f"Min_{nutrient}"
-            if max_val != 0:
+            if max_val > 0:
                 prob += pulp.lpSum(
                     [self.ingredients_df.loc[i, nutrient] * ingredient_vars[i] for i in self.ingredients_df.index]
                 ) <= max_val, f"Max_{nutrient}"
@@ -140,8 +140,8 @@ class DietFormulator:
             # Para cada nutriente seleccionado, mostrar su análisis, aunque no tenga restricción
             for nutrient in self.nutrient_list:
                 req = self.requirements.get(nutrient, {})
-                req_min = req.get("min", "")
-                req_max = req.get("max", "")
+                req_min = self._normalize_bound(req.get("min", 0))
+                req_max = self._normalize_bound(req.get("max", 0))
                 obtenido = nutritional_values.get(nutrient, None)
                 # Determinar estado
                 if req_min or req_max:
@@ -183,6 +183,7 @@ class DietFormulator:
         else:
             return {
                 "success": False,
+                "message": f"Solver status: {pulp.LpStatus[prob.status]}",
                 "diet": {},
                 "cost": 0,
                 "nutritional_values": {},
