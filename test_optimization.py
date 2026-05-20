@@ -54,6 +54,42 @@ class DietFormulatorMaxConstraintTests(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertIn("Infeasible", result["message"])
 
+    def test_shadow_price_is_reported_for_binding_min_constraint(self):
+        binding_df = pd.DataFrame(
+            [
+                {"Ingrediente": "Barato", "precio": 1.0, "EE": 0.0},
+                {"Ingrediente": "Caro", "precio": 2.0, "EE": 20.0},
+            ]
+        )
+        result = DietFormulator(
+            binding_df,
+            ["EE"],
+            {"EE": {"min": 8.0, "max": 0}},
+            self.limits,
+        ).solve()
+
+        self.assertTrue(result["success"])
+        self.assertAlmostEqual(result["shadow_prices"]["EE"], 0.05, places=4)
+
+    def test_binding_shadow_price_relative_impact_uses_cost_per_kg_basis(self):
+        binding_df = pd.DataFrame(
+            [
+                {"Ingrediente": "Barato", "precio": 1.0, "EE": 0.0},
+                {"Ingrediente": "Caro", "precio": 2.0, "EE": 20.0},
+            ]
+        )
+        result = DietFormulator(
+            binding_df,
+            ["EE"],
+            {"EE": {"min": 8.0, "max": 0}},
+            self.limits,
+        ).solve()
+
+        self.assertTrue(result["success"])
+        total_cost_per_kg = result["cost"] / 100
+        impact_pct = (abs(result["shadow_prices"]["EE"]) / total_cost_per_kg) * 100
+        self.assertAlmostEqual(impact_pct, 3.5714, places=3)
+
 
 if __name__ == "__main__":
     unittest.main()
