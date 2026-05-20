@@ -91,5 +91,54 @@ class DietFormulatorMaxConstraintTests(unittest.TestCase):
         self.assertAlmostEqual(impact_pct, 3.5714, places=3)
 
 
+class DietFormulatorRatioConstraintTests(unittest.TestCase):
+    def setUp(self):
+        self.df = pd.DataFrame(
+            [
+                {"Ingrediente": "A", "precio": 2.0, "Ca": 4.0, "P": 1.0},
+                {"Ingrediente": "B", "precio": 1.0, "Ca": 1.0, "P": 2.0},
+            ]
+        )
+        self.limits = {"min": {}, "max": {}}
+
+    def test_ratio_greater_equal_is_enforced(self):
+        result = DietFormulator(
+            self.df,
+            ["Ca", "P"],
+            {"Ca": {"min": 0, "max": 0}, "P": {"min": 0, "max": 0}},
+            self.limits,
+            ratios=[{"numerador": "Ca", "denominador": "P", "operador": ">=", "valor": 2.0}],
+        ).solve()
+
+        self.assertTrue(result["success"])
+        ratio = result["nutritional_values"]["Ca"] / result["nutritional_values"]["P"]
+        self.assertGreaterEqual(ratio, 2.0 - 1e-4)
+
+    def test_ratio_equal_is_enforced(self):
+        result = DietFormulator(
+            self.df,
+            ["Ca", "P"],
+            {"Ca": {"min": 0, "max": 0}, "P": {"min": 0, "max": 0}},
+            self.limits,
+            ratios=[{"numerador": "Ca", "denominador": "P", "operador": "=", "valor": 2.0}],
+        ).solve()
+
+        self.assertTrue(result["success"])
+        ratio = result["nutritional_values"]["Ca"] / result["nutritional_values"]["P"]
+        self.assertAlmostEqual(ratio, 2.0, places=4)
+
+    def test_invalid_ratio_outside_selected_nutrients_fails(self):
+        result = DietFormulator(
+            self.df,
+            ["Ca", "P"],
+            {"Ca": {"min": 0, "max": 0}, "P": {"min": 0, "max": 0}},
+            self.limits,
+            ratios=[{"numerador": "Mg", "denominador": "P", "operador": ">=", "valor": 1.0}],
+        ).solve()
+
+        self.assertFalse(result["success"])
+        self.assertIn("Ratio inválido", result["message"])
+
+
 if __name__ == "__main__":
     unittest.main()

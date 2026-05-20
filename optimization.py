@@ -38,6 +38,18 @@ class DietFormulator:
             return 0.0
         return bound if bound > 0 else 0.0
 
+    @staticmethod
+    def _error_result(message):
+        return {
+            "success": False,
+            "message": message,
+            "diet": {},
+            "cost": 0,
+            "nutritional_values": {},
+            "compliance_data": [],
+            "shadow_prices": {}
+        }
+
     def run(self):
         prob = pulp.LpProblem("Diet_Formulation", pulp.LpMinimize)
         ingredient_vars = pulp.LpVariable.dicts(
@@ -77,29 +89,41 @@ class DietFormulator:
             num = ratio.get("numerador")
             den = ratio.get("denominador")
             op = ratio.get("operador")
-            val = ratio.get("valor")
+            try:
+                val = float(ratio.get("valor"))
+            except Exception:
+                return self._error_result(f"Ratio inválido en posición {idx + 1}: valor no numérico.")
 
-            # Valida que ambos nutrientes estén en las columnas
+            if op not in {">=", "<=", "="}:
+                return self._error_result(
+                    f"Ratio inválido en posición {idx + 1}: operador '{op}' no soportado."
+                )
+            if num == den:
+                return self._error_result(
+                    f"Ratio inválido en posición {idx + 1}: numerador y denominador no pueden ser iguales."
+                )
+            if num not in self.nutrient_list or den not in self.nutrient_list:
+                return self._error_result(
+                    f"Ratio inválido en posición {idx + 1}: nutrientes fuera de la selección de formulación."
+                )
             if num not in self.ingredients_df.columns or den not in self.ingredients_df.columns:
-                continue  # omitir ratio no válido
+                return self._error_result(
+                    f"Ratio inválido en posición {idx + 1}: nutrientes no disponibles en la matriz nutricional."
+                )
 
             expr_num = pulp.lpSum([self.ingredients_df.loc[i, num] * ingredient_vars[i] for i in self.ingredients_df.index])
             expr_den = pulp.lpSum([self.ingredients_df.loc[i, den] * ingredient_vars[i] for i in self.ingredients_df.index])
 
             # Ratio linealizado: num - val*den {op} 0
             lhs = expr_num - val * expr_den
-            cname = f"Ratio_{num}_{op}_{val}_{den}_{idx}"
+            op_key = {"<=": "LE", ">=": "GE", "=": "EQ"}[op]
+            cname = f"Ratio_{num}_{op_key}_{den}_{idx}"
             if op == ">=":
                 prob += lhs >= 0, cname
             elif op == "<=":
                 prob += lhs <= 0, cname
-            elif op == ">":
-                prob += lhs >= 1e-6, cname
-            elif op == "<":
-                prob += lhs <= -1e-6, cname
             elif op == "=":
                 prob += lhs == 0, cname
-            # (otros operadores pueden añadirse si se requieren)
 
         # ============= DIAGNÓSTICO DESACTIVADO =============
         # (Bloque de prints removido para producción)
@@ -181,15 +205,7 @@ class DietFormulator:
                 "shadow_prices": shadow_prices
             }
         else:
-            return {
-                "success": False,
-                "message": f"Solver status: {pulp.LpStatus[prob.status]}",
-                "diet": {},
-                "cost": 0,
-                "nutritional_values": {},
-                "compliance_data": [],
-                "shadow_prices": {}
-            }
+            return self._error_result(f"Solver status: {pulp.LpStatus[prob.status]}")
 
     # Alias para compatibilidad con apps que llaman .solve()
     def solve(self):
