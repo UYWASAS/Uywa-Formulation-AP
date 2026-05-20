@@ -1101,8 +1101,7 @@ with tabs[0]:
                 cols_ratio_disp = st.columns([5, 1])
                 with cols_ratio_disp[0]:
                     st.write(
-                        f"{ratio['numerador']} / {ratio['denominador']} {ratio['operador']} {ratio['valor']}",
-                        key=f"ratio_{i}_display"
+                        f"{ratio['numerador']} / {ratio['denominador']} {ratio['operador']} {ratio['valor']}"
                     )
                 with cols_ratio_disp[1]:
                     if st.button("🗑️ Eliminar", key=f"eliminar_ratio_{i}"):
