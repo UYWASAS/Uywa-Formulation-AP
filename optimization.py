@@ -2,6 +2,8 @@ import pulp
 import pandas as pd
 
 class DietFormulator:
+    RATIO_DENOMINATOR_EPSILON = 1e-4
+
     def __init__(self, ingredients_df, nutrient_list, requirements, limits=None, selected_species=None, selected_stage=None, ratios=None):
         """
         ingredients_df: DataFrame con columnas de nutrientes, precio e 'Ingrediente'
@@ -113,6 +115,9 @@ class DietFormulator:
 
             expr_num = pulp.lpSum([self.ingredients_df.loc[i, num] * ingredient_vars[i] for i in self.ingredients_df.index])
             expr_den = pulp.lpSum([self.ingredients_df.loc[i, den] * ingredient_vars[i] for i in self.ingredients_df.index])
+
+            # Evita soluciones degeneradas donde el denominador del ratio sea exactamente cero.
+            prob += expr_den >= self.RATIO_DENOMINATOR_EPSILON, f"RatioDenPos_{den}_{idx}"
 
             # Ratio linealizado: num - val*den {op} 0
             lhs = expr_num - val * expr_den
