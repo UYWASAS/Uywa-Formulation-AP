@@ -168,19 +168,26 @@ def render_progress_bar(min_val, max_val, obtenido, width=12):
 
 
 def calculate_shadow_impact(shadow_price, total_cost):
-    """Convierte shadow price a % del costo total y clasifica impacto."""
+    """Convierte shadow price a % del costo por kg de la fórmula."""
     if shadow_price is None:
-        return "—", "—"
-    if total_cost == 0:
-        return "—", "—"
-    impact_pct = (abs(shadow_price) / total_cost) * 100
-    if impact_pct > 5:
-        impacto = "🔴 Alto"
+        return "—", None
+
+    total_cost_per_kg = safe_float(total_cost, 0) / 100
+    if total_cost_per_kg <= 0:
+        return "—", None
+
+    impact_pct = (abs(safe_float(shadow_price, 0)) / total_cost_per_kg) * 100
+
+    if impact_pct >= 10:
+        impact_text = f"{impact_pct:.1f}%"
     elif impact_pct >= 1:
-        impacto = "🟠 Medio"
+        impact_text = f"{impact_pct:.2f}%"
+    elif impact_pct >= 0.1:
+        impact_text = f"{impact_pct:.3f}%"
     else:
-        impacto = "🟢 Bajo"
-    return f"{impact_pct:.1f}%", impacto
+        impact_text = f"{impact_pct:.4f}%"
+
+    return impact_text, impact_pct
 
 
 def calculate_margin(obtenido, min_val):
@@ -202,24 +209,27 @@ def get_margin_emoji(obtenido, min_val):
         return "❌"
 
 
-def calculate_marginal_cost(shadow_pct, total_cost):
-    """Convierte shadow price % a costo marginal en $/kg."""
-    if shadow_pct == "—" or total_cost == 0:
+def calculate_marginal_cost(shadow_price):
+    """Costo marginal estimado por +1 unidad de restricción (USD/kg)."""
+    if shadow_price is None:
         return "—"
     try:
-        shadow_numeric = float(shadow_pct.replace("%", ""))
-        marginal_cost = (shadow_numeric / 100) * total_cost
-        return f"${marginal_cost:.2f}/kg"
+        marginal_cost = abs(safe_float(shadow_price, 0))
+        if marginal_cost >= 1:
+            return f"${marginal_cost:.2f}/kg"
+        if marginal_cost >= 0.01:
+            return f"${marginal_cost:.3f}/kg"
+        return f"${marginal_cost:.4f}/kg"
     except Exception:
         return "—"
 
 
 def classify_impact_advanced(shadow_pct):
     """Clasifica impacto según Shadow Price: >2% Alto, 0.5-2% Medio, <0.5% Bajo."""
-    if shadow_pct == "—":
+    if shadow_pct is None:
         return "🟢 Bajo"
     try:
-        shadow_numeric = float(shadow_pct.replace("%", ""))
+        shadow_numeric = float(shadow_pct)
         if shadow_numeric > 2:
             return "🔴 Alto"
         elif shadow_numeric >= 0.5:
@@ -241,10 +251,7 @@ def get_alert_status(obtenido, min_val, max_val, shadow_pct):
     if min_val > 0 and obtenido < min_val:
         return "❌ Incump"
 
-    try:
-        shadow_numeric = float(shadow_pct.replace("%", "")) if shadow_pct != "—" else 0
-    except Exception:
-        shadow_numeric = 0
+    shadow_numeric = safe_float(shadow_pct, 0)
 
     if shadow_numeric > 1:
         return "🔴 Limitante"
@@ -797,15 +804,15 @@ with tabs[0]:
             bar_visual, pct_text = render_progress_bar(min_val, max_val, obtenido)
 
             shadow_price = shadow_prices_preview.get(nutriente, None) if min_val != 0 else None
-            shadow_pct, impacto_simple = calculate_shadow_impact(shadow_price, preview_cost_table)
+            shadow_pct, shadow_pct_value = calculate_shadow_impact(shadow_price, preview_cost_table)
 
             # Nuevos cálculos
             brecha = obtenido - min_val if min_val > 0 else 0
             margin_text = calculate_margin(obtenido, min_val)
             margin_emoji = get_margin_emoji(obtenido, min_val)
-            marginal_cost = calculate_marginal_cost(shadow_pct, preview_cost_table)
-            impacto_avanzado = classify_impact_advanced(shadow_pct)
-            alert_status = get_alert_status(obtenido, min_val, max_val, shadow_pct)
+            marginal_cost = calculate_marginal_cost(shadow_price)
+            impacto_avanzado = classify_impact_advanced(shadow_pct_value)
+            alert_status = get_alert_status(obtenido, min_val, max_val, shadow_pct_value)
             ing_limitante = get_limiting_ingredient(
                 nutriente,
                 preview_result_table.get("diet", {}),
@@ -836,11 +843,36 @@ with tabs[0]:
                     "Min": st.column_config.NumberColumn("Min", min_value=0.0, format="%.2f", width=80),
                     "Max": st.column_config.NumberColumn("Max", min_value=0.0, format="%.2f", width=80),
                     "Obtenido": st.column_config.NumberColumn("Obtenido", format="%.2f", disabled=True, width=100),
-                    "% Logrado": st.column_config.TextColumn("% Logrado", disabled=True, width=95),
-                    "Shadow Price": st.column_config.TextColumn("Shadow Price", disabled=True, width=105),
-                    "Costo Marginal": st.column_config.TextColumn("Costo Marginal", disabled=True, width=110),
-                    "Impacto": st.column_config.TextColumn("Impacto", disabled=True, width=95),
-                    "Ing Limitante": st.column_config.TextColumn("Ing Limitante", disabled=True, width=130),
+                    "% Logrado": st.column_config.TextColumn(
+                        "% Logrado",
+                        disabled=True,
+                        width=95,
+                        help="Compara lo obtenido contra tu límite activo (Min o Max). 100% indica cumplimiento exacto; por debajo o por encima señala desvíos."
+                    ),
+                    "Shadow Price": st.column_config.TextColumn(
+                        "Shadow Price",
+                        disabled=True,
+                        width=105,
+                        help="Impacto porcentual estimado en el costo por kg si endureces en +1 unidad el mínimo de ese nutriente. Cerca de 0% suele indicar restricción no limitante."
+                    ),
+                    "Costo Marginal": st.column_config.TextColumn(
+                        "Costo Marginal",
+                        disabled=True,
+                        width=110,
+                        help="Incremento estimado en USD/kg por exigir +1 unidad adicional del nutriente (valor absoluto del precio sombra del solver)."
+                    ),
+                    "Impacto": st.column_config.TextColumn(
+                        "Impacto",
+                        disabled=True,
+                        width=95,
+                        help="Clasificación rápida del efecto económico del nutriente (Bajo/Medio/Alto) según su Shadow Price."
+                    ),
+                    "Ing Limitante": st.column_config.TextColumn(
+                        "Ing Limitante",
+                        disabled=True,
+                        width=130,
+                        help="Ingrediente que más aporta ese nutriente en la fórmula previa; útil para identificar dependencias críticas."
+                    ),
                 }
             )
 
