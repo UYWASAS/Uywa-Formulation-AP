@@ -139,6 +139,24 @@ class DietFormulatorRatioConstraintTests(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertIn("Ratio inválido", result["message"])
 
+    def test_ratio_requires_positive_denominator(self):
+        zero_den_df = pd.DataFrame(
+            [
+                {"Ingrediente": "A", "precio": 1.0, "Ca": 1.0, "P": 0.0},
+                {"Ingrediente": "B", "precio": 2.0, "Ca": 2.0, "P": 0.0},
+            ]
+        )
+        result = DietFormulator(
+            zero_den_df,
+            ["Ca", "P"],
+            {"Ca": {"min": 0, "max": 0}, "P": {"min": 0, "max": 0}},
+            self.limits,
+            ratios=[{"numerador": "Ca", "denominador": "P", "operador": ">=", "valor": 1.8}],
+        ).solve()
+
+        self.assertFalse(result["success"])
+        self.assertIn("Infeasible", result["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

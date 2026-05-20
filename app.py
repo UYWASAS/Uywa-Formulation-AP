@@ -136,6 +136,70 @@ def normalize_requirement_bound(val):
     bound = safe_float(val, 0)
     return bound if bound > 0 else 0.0
 
+
+def has_explicit_minimum(requirements_map, nutrient):
+    req = requirements_map.get(nutrient, {}) if requirements_map else {}
+    return normalize_requirement_bound(req.get("min", 0)) > 0
+
+
+def ratio_denominator_min_warnings(ratios, requirements_map):
+    warnings = []
+    for ratio in ratios or []:
+        den = ratio.get("denominador")
+        if den and not has_explicit_minimum(requirements_map, den):
+            warnings.append(
+                f"{ratio.get('numerador')} / {den} {ratio.get('operador')} {ratio.get('valor')}"
+            )
+    return warnings
+
+
+def evaluate_ratio_status(ratio, nutritional_values, requirements_map):
+    num = ratio.get("numerador")
+    den = ratio.get("denominador")
+    op = ratio.get("operador")
+    val = safe_float(ratio.get("valor"), 0)
+    num_val = nutritional_values.get(num)
+    den_val = nutritional_values.get(den)
+
+    calculado = None
+    cumple = None
+    detalle = ""
+    den_has_min = has_explicit_minimum(requirements_map, den)
+    warning_min_msg = (
+        f"Nota: este ratio no fuerza por sí solo un mínimo explícito para '{den}'. "
+        f"Define un mínimo de '{den}' para asegurar un balance nutricional real."
+    )
+
+    if den_val is None:
+        detalle = f"Nutriente '{den}' no disponible."
+    elif abs(safe_float(den_val, 0)) <= 1e-12:
+        cumple = False
+        detalle = (
+            f"Ratio degenerado: denominador '{den}' = 0. "
+            f"El ratio linealizado puede quedar trivial sin mínimo explícito. {warning_min_msg}"
+        )
+    elif num_val is None:
+        detalle = f"Nutriente '{num}' no disponible."
+    else:
+        calculado = num_val / den_val
+        if op == "=":
+            cumple = abs(calculado - val) < 1e-2
+        elif op == ">=":
+            cumple = calculado >= val - 1e-2
+        elif op == "<=":
+            cumple = calculado <= val + 1e-2
+        detalle = f"Calculado: {num_val:.2f} / {den_val:.2f} = {calculado:.2f}"
+        if not den_has_min:
+            detalle = f"{detalle}. {warning_min_msg}"
+
+    estado = "✅ Cumple" if cumple else ("❌ No cumple" if cumple is False else "⚠️ No evaluable")
+    return {
+        "calculado": calculado,
+        "cumple": cumple,
+        "detalle": detalle,
+        "estado": estado,
+    }
+
 def render_progress_bar(min_val, max_val, obtenido, width=12):
     """
     Genera visualización de progreso con emoji + porcentaje.
@@ -793,6 +857,7 @@ with tabs[0]:
         if ratios_limpios != st.session_state.get("ratios", []):
             st.session_state["ratios"] = ratios_limpios
         active_ratios = st.session_state.get("ratios", [])
+        ratio_warnings_no_den_min = ratio_denominator_min_warnings(active_ratios, req_preview)
 
         # Obtener estado actual de req_input (para después de guardar)
         nutrientes_data = st.session_state.get("req_input", {})
@@ -1059,41 +1124,22 @@ with tabs[0]:
             if active_ratios:
                 st.markdown("---")
                 st.subheader("📐 Cumplimiento de Ratios (Preview)")
+                if ratio_warnings_no_den_min:
+                    st.warning(
+                        "⚠️ Algunos ratios tienen denominador sin mínimo explícito. "
+                        "El ratio linealizado no garantiza por sí solo un balance real del denominador. "
+                        "Se recomienda definir mínimo para el nutriente denominador.\n\n"
+                        + "\n".join([f"- {txt}" for txt in ratio_warnings_no_den_min])
+                    )
                 ratio_preview_rows = []
                 for ratio in active_ratios:
-                    num = ratio.get("numerador")
-                    den = ratio.get("denominador")
-                    op = ratio.get("operador")
-                    val = ratio.get("valor")
-                    num_val = preview_nutrition_table.get(num)
-                    den_val = preview_nutrition_table.get(den)
-                    calculado = None
-                    detalle = ""
-                    if den_val is not None and den_val != 0:
-                        calculado = num_val / den_val
-                        calc_str = f"{num_val:.2f} / {den_val:.2f} = {calculado:.2f}"
-                        if op == "=":
-                            cumple = abs(calculado - val) < 1e-2
-                        elif op == ">=":
-                            cumple = calculado >= val - 1e-2
-                        elif op == "<=":
-                            cumple = calculado <= val + 1e-2
-                        else:
-                            cumple = None
-                        detalle = f"Calculado: {calc_str}"
-                    elif den_val == 0:
-                        cumple = False
-                        detalle = f"División por cero (denominador '{den}' = 0)"
-                    else:
-                        cumple = None
-                        detalle = f"Nutriente '{den}' no disponible"
-                    estado = "✅ Cumple" if cumple else ("❌ No cumple" if cumple is False else "⚠️ No evaluable")
+                    ratio_eval = evaluate_ratio_status(ratio, preview_nutrition_table, req_preview)
                     ratio_preview_rows.append({
-                        "Ratio": f"{num} / {den}",
-                        "Restricción": f"{op} {val}",
-                        "Valor calculado": f"{calculado:.4f}" if calculado is not None else "N/A",
-                        "Estado": estado,
-                        "Detalle": detalle,
+                        "Ratio": f"{ratio.get('numerador')} / {ratio.get('denominador')}",
+                        "Restricción": f"{ratio.get('operador')} {ratio.get('valor')}",
+                        "Valor calculado": f"{ratio_eval['calculado']:.4f}" if ratio_eval["calculado"] is not None else "N/A",
+                        "Estado": ratio_eval["estado"],
+                        "Detalle": ratio_eval["detalle"],
                     })
                 st.dataframe(pd.DataFrame(ratio_preview_rows), use_container_width=True, hide_index=True)
 
@@ -1319,42 +1365,23 @@ with tabs[1]:
         # === APARTADO DE CUMPLIMIENTO DE RATIOS ENTRE NUTRIENTES ===
         if ratios:
             st.subheader("Cumplimiento de restricciones de ratios entre nutrientes")
-            ratio_rows = []
-            for i, ratio in enumerate(ratios):
-                num = ratio.get("numerador")
-                den = ratio.get("denominador")
-                op = ratio.get("operador")
-                val = ratio.get("valor")
-
-                num_val = nutritional_values.get(num, None)
-                den_val = nutritional_values.get(den, None)
-                calculado = None
-                cumple = ""
-                detalle = ""
-                if den_val is not None and den_val != 0:
-                    calculado = num_val / den_val
-                    calc_str = f"{num_val:.2f} / {den_val:.2f} = {calculado:.2f}"
-                    # Evaluación del cumplimiento
-                    if op == "=":
-                        cumple = abs(calculado - val) < 1e-2
-                    elif op == ">=":
-                        cumple = calculado >= val - 1e-2
-                    elif op == "<=":
-                        cumple = calculado <= val + 1e-2
-                    detalle = f"Calculado: {calc_str}"
-                else:
-                    cumple = False
-                    detalle = f"División por cero (denominador '{den}' = {den_val})"
-
-                cumple_txt = (
-                    "✅ Cumple" if cumple else "❌ No cumple"
+            ratio_warnings_final = ratio_denominator_min_warnings(ratios, req_input)
+            if ratio_warnings_final:
+                st.warning(
+                    "⚠️ Algunos ratios tienen denominador sin mínimo explícito. "
+                    "El ratio linealizado no garantiza por sí solo la positividad del denominador. "
+                    "Se recomienda definir mínimo para el nutriente denominador.\n\n"
+                    + "\n".join([f"- {txt}" for txt in ratio_warnings_final])
                 )
+            ratio_rows = []
+            for ratio in ratios:
+                ratio_eval = evaluate_ratio_status(ratio, nutritional_values, req_input)
 
                 ratio_rows.append({
-                    "Ratio definido": f"{num} / {den} {op} {val}",
-                    "Valor calculado": f"{calculado:.2f}" if calculado is not None else "N/A",
-                    "Cumplimiento": cumple_txt,
-                    "Detalle": detalle
+                    "Ratio definido": f"{ratio.get('numerador')} / {ratio.get('denominador')} {ratio.get('operador')} {ratio.get('valor')}",
+                    "Valor calculado": f"{ratio_eval['calculado']:.2f}" if ratio_eval["calculado"] is not None else "N/A",
+                    "Cumplimiento": ratio_eval["estado"],
+                    "Detalle": ratio_eval["detalle"]
                 })
 
             ratio_df = pd.DataFrame(ratio_rows)
