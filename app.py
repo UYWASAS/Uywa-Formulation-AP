@@ -676,7 +676,7 @@ with tabs[0]:
                     ):
                         # Solo cargar nutrientes SIN valores
                         st.session_state["nutrientes_seleccionados"] = _nutrientes_en_preset
-                        # NO modificar nutrientes_seleccionados_key (es el key del widget)
+                        st.session_state["nutrientes_seleccionados_key"] = _nutrientes_en_preset
 
                         # Forzar limpiar cualquier valor previo (siempre Min/Max = 0)
                         for nutriente in _nutrientes_en_preset:
