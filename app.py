@@ -778,7 +778,7 @@ with tabs[0]:
                     key="categoria_aves_selectbox"
                 )
 
-              with col3:
+             with col3:
                 etapas_opciones = etapa_default["Aves"].get(
                     categoria_aves,
                     []
