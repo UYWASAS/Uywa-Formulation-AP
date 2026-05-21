@@ -724,17 +724,20 @@ with tabs[0]:
 
         # ---- 6.4 Selección de especie y etapa ----
         st.subheader("Configura los requerimientos nutricionales")
-
+        
         especies = ["Aves", "Cerdos", "Rumiantes"]
-
+        
         etapa_default = {
+        
             "Aves": {
+        
                 "Engorde": [
                     "Broiler Iniciación",
                     "Broiler Crecimiento",
                     "Broiler Cebo",
                     "Broiler Acabado",
                 ],
+        
                 "Postura": [
                     "Pollita Recría 0-5",
                     "Pollita Recría 5-10",
@@ -746,73 +749,92 @@ with tabs[0]:
                     "Ponedora Problemas Cascara",
                 ],
             },
-
-            "Cerdos": [
-                "Crecimiento",
-                "Engorde",
-                "Reproductoras",
-            ],
-
+        
+            "Cerdos": {
+        
+                "Animales adultos": [
+                    "Adultos - Gestación estándar",
+                    "Adultos - Lactación estándar",
+                    "Adultos - Verracos",
+                ],
+        
+                "Lechones": [
+                    "Lechones - Preiniciador",
+                    "Lechones - Inicio",
+                    "Lechones - Crecimiento temprano",
+                ],
+        
+                "Cerdos crecimiento-engorde": [
+                    "Cerdos - Crecimiento 20-60 kg",
+                    "Cerdos - Engorde 60-100 kg",
+                    "Cerdos - Acabado >100 kg",
+                ],
+            },
+        
             "Rumiantes": [
                 "Terneros",
                 "Vacas lecheras",
                 "Vacas secas",
             ],
         }
-
+        
         col1, col2, col3 = st.columns(3)
-
+        
         with col1:
+        
             especie = st.selectbox(
                 "Especie",
                 especies,
                 key="especie_selectbox"
             )
-
-        if especie == "Aves":
-
+        
+        if isinstance(etapa_default.get(especie), dict):
+        
             with col2:
-                categoria_aves = st.selectbox(
+        
+                categoria = st.selectbox(
                     "Categoría",
-                    list(etapa_default["Aves"].keys()),
-                    key="categoria_aves_selectbox"
+                    list(etapa_default[especie].keys()),
+                    key=f"categoria_{especie.lower()}_selectbox"
                 )
-
+        
             with col3:
-                etapas_opciones = etapa_default["Aves"].get(
-                    categoria_aves,
+        
+                etapas_opciones = etapa_default[especie].get(
+                    categoria,
                     []
                 )
-
+        
                 etapa = st.selectbox(
                     "Etapa",
                     etapas_opciones + ["Otra"],
                     key="etapa_selectbox"
                 )
-
+        
         else:
-
-            categoria_aves = None
-
+        
+            categoria = None
+        
             with col2:
+        
                 etapas_opciones = etapa_default.get(
                     especie,
                     []
                 )
-
+        
                 etapa = st.selectbox(
                     "Etapa",
                     etapas_opciones + ["Otra"],
                     key="etapa_selectbox"
                 )
-
+        
         if etapa == "Otra":
-
+        
             etapa = st.text_input(
                 "Ingrese nombre de la etapa",
                 key="etapa_input"
             )
-
+            
         # ---- 6.4.1 PASO 2: Botón para precargar nutrientes del preset ----
         if etapa and etapa != "Otra":
             _presets_step2 = get_preset_requirements(especie, etapa)
