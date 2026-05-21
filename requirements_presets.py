@@ -135,7 +135,6 @@ PRESETS = {
             "Colina":      {"min": 1260},
             "Biotina":     {"min": 50},
         },
-
         "Pollita Recría 5-10": {
             "EMA_AVES":    {"min": 2820},
             "PB":          {"min": 16.7},
@@ -162,7 +161,6 @@ PRESETS = {
             "Colina":      {"min": 1230},
             "Biotina":     {"min": 30},
         },
-
         "Pollita Recría 10-17": {
             "EMA_AVES":    {"min": 2730},
             "PB":          {"min": 15.0},
@@ -189,7 +187,6 @@ PRESETS = {
             "Colina":      {"min": 1200},
             "Biotina":     {"min": 30},
         },
-
         "Pollita Inicio Puesta": {
             "EMA_AVES":    {"min": 2730},
             "PB":          {"min": 17.0},
@@ -242,7 +239,6 @@ PRESETS = {
             "Colina":      {"min": 1100},
             "Biotina":     {"min": 30},
         },
-
         "Ponedora Inicio Postura": {
             "EMA_AVES":    {"min": 2720},
             "PB":          {"min": 15.8},
@@ -269,7 +265,6 @@ PRESETS = {
             "Colina":      {"min": 1000},
             "Biotina":     {"min": 30},
         },
-
         "Ponedora Final Postura": {
             "EMA_AVES":    {"min": 2680},
             "PB":          {"min": 15.0},
@@ -296,7 +291,6 @@ PRESETS = {
             "Colina":      {"min": 950},
             "Biotina":     {"min": 35},
         },
-
         "Ponedora Problemas Cascara": {
             "EMA_AVES":    {"min": 2680},
             "PB":          {"min": 15.0},
