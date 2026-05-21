@@ -726,7 +726,7 @@ with tabs[0]:
         st.subheader("Configura los requerimientos nutricionales")
         especies = ["Aves", "Cerdos", "Rumiantes"]
         etapa_default = {
-            "Aves": ["Broiler Iniciación", "Broiler Crecimiento", "Broiler Cebo", "Broiler Acabado"],
+            "Aves": ["Broiler Iniciación", "Broiler Crecimiento", "Broiler Cebo", "Broiler Acabado", "Pollita Recría 0-5", "Pollita Recría 5-10", "Pollita Recría 10-17", "Pollita Inicio Puesta",],
             "Cerdos": ["Crecimiento", "Engorde", "Reproductoras"],
             "Rumiantes": ["Terneros", "Vacas lecheras", "Vacas secas"]
         }
